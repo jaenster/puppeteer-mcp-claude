@@ -2,6 +2,21 @@
 
 A Model Context Protocol (MCP) server that provides Claude Code with comprehensive browser automation capabilities through Puppeteer. This server allows Claude to interact with web pages, take screenshots, execute JavaScript, and perform various browser automation tasks.
 
+## 🚀 Quick Start
+
+**Want browser automation in Claude Code? Run this one command:**
+
+```bash
+npx puppeteer-mcp-claude install
+```
+
+**That's it!** The installer will automatically:
+- Set up everything for Claude Code
+- Configure all the browser automation tools
+- Verify the installation works
+
+Then restart Claude Code and ask: *"Take a screenshot of google.com"* to test it out!
+
 ## Features
 
 - **Browser Management**: Launch and close Chrome/Chromium browsers
@@ -30,19 +45,27 @@ A Model Context Protocol (MCP) server that provides Claude Code with comprehensi
 
 ## Installation
 
-### Quick Install (Recommended)
+### 🚀 Automatic Setup (Recommended)
 
-Install and configure for Claude Code in one command:
+**Get browser automation in Claude Code with just one command:**
 
 ```bash
 npx puppeteer-mcp-claude install
 ```
 
-That's it! The installer will:
-- Download and install the package
-- Automatically configure Claude Code
-- Verify the installation
-- Provide next steps
+**What happens automatically:**
+1. ✅ Downloads the latest version from npm
+2. ✅ Creates `~/.claude/claude_desktop_config.json` if needed
+3. ✅ Adds the MCP server configuration to Claude Code
+4. ✅ Verifies everything is working correctly
+5. ✅ Shows you exactly what to do next
+
+**After installation:**
+- Restart Claude Code if it's running
+- Ask Claude: *"List all available tools"*
+- You'll see 11 new puppeteer tools for browser automation!
+
+**No manual configuration needed!** The installer handles everything.
 
 ### Manual Installation
 
