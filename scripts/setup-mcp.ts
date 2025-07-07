@@ -79,17 +79,16 @@ class MCPSetup {
       config.mcpServers = {};
     }
 
-    // Check if puppeteer server already exists
-    if (config.mcpServers.puppeteer) {
+    // Check if puppeteer-mcp-claude server already exists
+    if (config.mcpServers['puppeteer-mcp-claude']) {
       console.log('⚠️  Puppeteer MCP server already configured');
       console.log('   Updating existing configuration...');
     }
 
     // Add/update our MCP server configuration
-    config.mcpServers.puppeteer = {
-      command: 'ts-node',
-      args: ['src/index.ts'],
-      cwd: this.projectPath,
+    config.mcpServers['puppeteer-mcp-claude'] = {
+      command: 'npx',
+      args: ['puppeteer-mcp-claude', 'serve'],
       env: {
         NODE_ENV: 'production'
       }
@@ -117,21 +116,23 @@ class MCPSetup {
       const configContent = readFileSync(this.claudeConfigPath, 'utf8');
       const config = JSON.parse(configContent);
       
-      if (!config.mcpServers?.puppeteer) {
+      if (!config.mcpServers?.['puppeteer-mcp-claude']) {
         throw new Error('Puppeteer MCP server not found in configuration');
       }
       
-      const puppeteerConfig = config.mcpServers.puppeteer;
+      const puppeteerConfig = config.mcpServers['puppeteer-mcp-claude'];
       
       // Verify configuration structure
-      if (!puppeteerConfig.command || !puppeteerConfig.args || !puppeteerConfig.cwd) {
+      if (!puppeteerConfig.command || !puppeteerConfig.args) {
         throw new Error('Incomplete MCP server configuration');
       }
       
       console.log('✅ Configuration verified');
       console.log(`   Command: ${puppeteerConfig.command}`);
       console.log(`   Args: ${puppeteerConfig.args.join(' ')}`);
-      console.log(`   Working Directory: ${puppeteerConfig.cwd}`);
+      if (puppeteerConfig.cwd) {
+        console.log(`   Working Directory: ${puppeteerConfig.cwd}`);
+      }
       
     } catch (error) {
       throw new Error(`Configuration verification failed: ${error}`);
@@ -150,8 +151,8 @@ class MCPSetup {
       const configContent = readFileSync(this.claudeConfigPath, 'utf8');
       const config = JSON.parse(configContent);
       
-      if (config.mcpServers?.puppeteer) {
-        delete config.mcpServers.puppeteer;
+      if (config.mcpServers?.['puppeteer-mcp-claude']) {
+        delete config.mcpServers['puppeteer-mcp-claude'];
         writeFileSync(this.claudeConfigPath, JSON.stringify(config, null, 2));
         console.log('✅ MCP Puppeteer configuration removed');
       } else {
@@ -175,13 +176,15 @@ class MCPSetup {
       const configContent = readFileSync(this.claudeConfigPath, 'utf8');
       const config = JSON.parse(configContent);
       
-      if (config.mcpServers?.puppeteer) {
+      if (config.mcpServers?.['puppeteer-mcp-claude']) {
         console.log('✅ MCP Puppeteer is configured');
         console.log('\n📋 Configuration:');
-        console.log(`   Command: ${config.mcpServers.puppeteer.command}`);
-        console.log(`   Args: ${config.mcpServers.puppeteer.args.join(' ')}`);
-        console.log(`   Working Directory: ${config.mcpServers.puppeteer.cwd}`);
-        console.log(`   Environment: ${JSON.stringify(config.mcpServers.puppeteer.env || {})}`);
+        console.log(`   Command: ${config.mcpServers['puppeteer-mcp-claude'].command}`);
+        console.log(`   Args: ${config.mcpServers['puppeteer-mcp-claude'].args.join(' ')}`);
+        if (config.mcpServers['puppeteer-mcp-claude'].cwd) {
+          console.log(`   Working Directory: ${config.mcpServers['puppeteer-mcp-claude'].cwd}`);
+        }
+        console.log(`   Environment: ${JSON.stringify(config.mcpServers['puppeteer-mcp-claude'].env || {})}`);
       } else {
         console.log('❌ MCP Puppeteer is not configured');
         console.log('   Run: npm run setup-mcp');
@@ -191,7 +194,7 @@ class MCPSetup {
       if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
         console.log('\n📋 All configured MCP servers:');
         Object.keys(config.mcpServers).forEach(serverName => {
-          const isOurs = serverName === 'puppeteer' ? '← (this project)' : '';
+          const isOurs = serverName === 'puppeteer-mcp-claude' ? '← (this project)' : '';
           console.log(`   • ${serverName} ${isOurs}`);
         });
       }
