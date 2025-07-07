@@ -2,6 +2,15 @@
   "name": "puppeteer-mcp-claude",
   "version": "1.0.0",
   "main": "dist/index.js",
+  "bin": {
+    "puppeteer-mcp-claude": "./bin/cli.js"
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -13,10 +22,20 @@
     "test:console": "ts-node tests/console-claude-test.ts",
     "setup-mcp": "ts-node scripts/setup-mcp.ts setup",
     "remove-mcp": "ts-node scripts/setup-mcp.ts remove",
-    "status-mcp": "ts-node scripts/setup-mcp.ts status"
+    "status-mcp": "ts-node scripts/setup-mcp.ts status",
+    "prepublishOnly": "npm run build",
+    "prepack": "npm run build"
   },
   "keywords": ["mcp", "puppeteer", "claude", "browser-automation", "model-context-protocol"],
-  "author": "",
+  "author": "jaenster",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaenster/puppeteer-mcp-claude.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jaenster/puppeteer-mcp-claude/issues"
+  },
+  "homepage": "https://github.com/jaenster/puppeteer-mcp-claude#readme",
   "license": "MIT",
   "description": "A Model Context Protocol (MCP) server that provides Claude Code with comprehensive browser automation capabilities through Puppeteer",
   "dependencies": {

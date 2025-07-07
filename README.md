@@ -30,10 +30,42 @@ A Model Context Protocol (MCP) server that provides Claude Code with comprehensi
 
 ## Installation
 
+### Quick Install (Recommended)
+
+Install and configure for Claude Code in one command:
+
+```bash
+npx puppeteer-mcp-claude install
+```
+
+That's it! The installer will:
+- Download and install the package
+- Automatically configure Claude Code
+- Verify the installation
+- Provide next steps
+
+### Manual Installation
+
+If you prefer to install manually:
+
+1. **Install the package globally**:
+   ```bash
+   npm install -g puppeteer-mcp-claude
+   ```
+
+2. **Configure for Claude Code**:
+   ```bash
+   puppeteer-mcp-claude install
+   ```
+
+### Development Installation
+
+For development or contribution:
+
 1. **Clone and install dependencies**:
    ```bash
-   git clone <repository-url>
-   cd mcp-puppeteer
+   git clone https://github.com/jaenster/puppeteer-mcp-claude.git
+   cd puppeteer-mcp-claude
    npm install
    ```
 
@@ -42,59 +74,45 @@ A Model Context Protocol (MCP) server that provides Claude Code with comprehensi
    npm run build
    ```
 
-## Adding to Claude Code
-
-### Method 1: Automatic Setup (Recommended)
-
-Use the built-in setup script to automatically configure the MCP server:
-
-```bash
-npm run setup-mcp
-```
-
-This will:
-- Create the necessary Claude Code configuration directory
-- Add the MCP server configuration to your Claude Code settings
-- Verify the setup is working correctly
-
-### Method 2: Manual Configuration
-
-1. **Create the Claude Code configuration directory** (if it doesn't exist):
+3. **Use local setup script**:
    ```bash
-   mkdir -p ~/.claude
+   npm run setup-mcp
    ```
 
-2. **Add MCP server configuration**:
-   
-   Create or edit `~/.claude/claude_desktop_config.json`:
-   ```json
-   {
-     "mcpServers": {
-       "puppeteer": {
-         "command": "ts-node",
-         "args": ["src/index.ts"],
-         "cwd": "/path/to/your/mcp-puppeteer",
-         "env": {
-           "NODE_ENV": "production"
-         }
-       }
-     }
-   }
-   ```
+## Management Commands
 
-   **Important**: Replace `/path/to/your/mcp-puppeteer` with the actual absolute path to your cloned repository.
+| Command | Description |
+|---------|-------------|
+| `npx puppeteer-mcp-claude install` | Install and configure for Claude Code |
+| `npx puppeteer-mcp-claude uninstall` | Remove from Claude Code |
+| `npx puppeteer-mcp-claude status` | Check installation status |
+| `npx puppeteer-mcp-claude help` | Show help and available tools |
 
-3. **Verify your configuration**:
-   ```bash
-   npm run status-mcp
-   ```
+## Alternative Installation Methods
 
-### Method 3: Using Claude Code MCP Command
+### Method 1: Using Claude Code MCP Command
 
 You can also configure this server using Claude Code's built-in MCP management:
 
 ```bash
-claude mcp add puppeteer ts-node src/index.ts --cwd /path/to/mcp-puppeteer
+claude mcp add puppeteer-mcp-claude
+```
+
+### Method 2: Manual Configuration
+
+Create or edit `~/.claude/claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "puppeteer-mcp-claude": {
+      "command": "npx",
+      "args": ["puppeteer-mcp-claude", "serve"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}
 ```
 
 ## Post-Installation Steps
