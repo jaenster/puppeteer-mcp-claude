@@ -1,0 +1,66 @@
+name: Publish to NPM
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v0.1.0, etc.
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write  # Required for npm provenance
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-js-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run tests
+        run: npm test
+        
+      - name: Build package
+        run: npm run build
+        
+      - name: Verify package contents
+        run: |
+          npm pack --dry-run
+          echo "Package size:"
+          npm pack 2>/dev/null | tail -1 | awk '{print $NF}'
+          
+      - name: Publish to NPM
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## Changes
+            
+            Install with: `npx puppeteer-mcp-claude install`
+            
+            ### Features
+            - Browser automation for Claude Code
+            - 11 Puppeteer tools for web interaction
+            - One-command installation and setup
+            - Automatic Claude Code configuration
+            
+            See the [README](https://github.com/jaenster/puppeteer-mcp-claude#readme) for full documentation.
+          draft: false
+          prerelease: false
