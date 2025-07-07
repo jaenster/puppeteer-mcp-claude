@@ -4,7 +4,13 @@ A Model Context Protocol (MCP) server that provides Claude Code with comprehensi
 
 ## 🚀 Quick Start
 
-**Want browser automation in Claude Desktop & Claude Code? Run this one command:**
+**Want browser automation in Claude Code? Run this one command:**
+
+```bash
+claude mcp add puppeteer-mcp-claude
+```
+
+**Alternative - works for both Claude Desktop & Claude Code:**
 
 ```bash
 npx puppeteer-mcp-claude install
@@ -124,9 +130,9 @@ For development or contribution:
 
 ## Alternative Installation Methods
 
-### Method 1: Using Claude Code MCP Command
+### Method 1: Using Claude Code MCP Command (Recommended)
 
-You can also configure this server using Claude Code's built-in MCP management:
+Configure this server using Claude Code's built-in MCP management:
 
 ```bash
 claude mcp add puppeteer-mcp-claude

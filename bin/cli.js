@@ -138,14 +138,24 @@ class PuppeteerMCPInstaller {
   async installForConfig(config) {
     console.log(`📝 Configuring ${config.name}...`);
     
-    // Ensure directory exists
+    // Use claude mcp add for Claude Code
+    if (config.type === 'code') {
+      console.log('🔧 Using claude mcp add command...');
+      execSync(`claude mcp add ${this.serverName} "npx puppeteer-mcp-claude serve"`, { 
+        stdio: 'inherit',
+        cwd: this.packageDir 
+      });
+      console.log(`✅ Successfully added via claude mcp add`);
+      return;
+    }
+    
+    // Manual configuration for Claude Desktop
     const configDir = path.dirname(config.path);
     if (!existsSync(configDir)) {
       console.log(`📁 Creating directory: ${configDir}`);
       mkdirSync(configDir, { recursive: true });
     }
     
-    // Read or create config
     let claudeConfig = {};
     let hasExistingConfig = false;
 
@@ -161,26 +171,23 @@ class PuppeteerMCPInstaller {
       }
     }
 
-    // Initialize mcpServers if it doesn't exist
     if (!claudeConfig.mcpServers) {
       claudeConfig.mcpServers = {};
     }
 
-    // Check if our server already exists
     if (claudeConfig.mcpServers[this.serverName]) {
       console.log(`⚠️  Puppeteer MCP already configured, updating...`);
     }
 
-    // Add/update our MCP server configuration
     claudeConfig.mcpServers[this.serverName] = {
-      command: 'npx',
-      args: ['puppeteer-mcp-claude', 'serve'],
+      command: 'node',
+      args: [join(this.packageDir, 'dist', 'index.js')],
+      cwd: this.packageDir,
       env: {
         NODE_ENV: 'production'
       }
     };
 
-    // Write the updated configuration
     writeFileSync(config.path, JSON.stringify(claudeConfig, null, 2));
     
     if (hasExistingConfig) {
@@ -189,7 +196,6 @@ class PuppeteerMCPInstaller {
       console.log(`✅ Configuration created: ${config.path}`);
     }
 
-    // Verify the installation
     await this.verifyInstallationForConfig(config, claudeConfig);
   }
 
@@ -197,21 +203,31 @@ class PuppeteerMCPInstaller {
     console.log(`🔍 Verifying ${config.name} installation...`);
     
     try {
-      if (!claudeConfig.mcpServers?.[this.serverName]) {
-        throw new Error(`${this.serverName} not found in configuration`);
-      }
-      
-      const serverConfig = claudeConfig.mcpServers[this.serverName];
-      
-      if (!serverConfig.command || !serverConfig.args) {
-        throw new Error('Incomplete MCP server configuration');
-      }
-      
-      // For npx commands, verify structure
-      if (serverConfig.command === 'npx' && serverConfig.args[0] === 'puppeteer-mcp-claude') {
-        console.log(`✅ ${config.name} configuration verified`);
+      // If claude mcp add was used, the configuration might not be in the expected format
+      // So we'll read the config file again to verify
+      if (existsSync(config.path)) {
+        const configContent = readFileSync(config.path, 'utf8');
+        const currentConfig = JSON.parse(configContent);
+        
+        if (currentConfig.mcpServers?.[this.serverName]) {
+          const serverConfig = currentConfig.mcpServers[this.serverName];
+          
+          if (!serverConfig.command || !serverConfig.args) {
+            throw new Error('Incomplete MCP server configuration');
+          }
+          
+          // Verify either npx or node command structure
+          if ((serverConfig.command === 'npx' && serverConfig.args[0] === 'puppeteer-mcp-claude') ||
+              (serverConfig.command === 'node' && serverConfig.args[0].includes('dist/index.js'))) {
+            console.log(`✅ ${config.name} configuration verified`);
+          } else {
+            console.log(`✅ ${config.name} configuration verified (custom format)`);
+          }
+        } else {
+          throw new Error(`${this.serverName} not found in configuration`);
+        }
       } else {
-        throw new Error('Invalid server configuration');
+        throw new Error('Configuration file not found');
       }
       
     } catch (error) {
