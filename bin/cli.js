@@ -332,6 +332,94 @@ class PuppeteerMCPInstaller {
     });
   }
 
+  async startChrome(port = 9222, userDataDir = null) {
+    console.log(`🚀 Starting Chrome with remote debugging on port ${port}...\n`);
+    
+    const os = platform();
+    let chromePath;
+    
+    // Find Chrome executable
+    if (os === 'darwin') {
+      chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      if (!existsSync(chromePath)) {
+        chromePath = '/Applications/Chromium.app/Contents/MacOS/Chromium';
+      }
+    } else if (os === 'linux') {
+      try {
+        chromePath = execSync('which google-chrome', { encoding: 'utf8' }).trim();
+      } catch {
+        try {
+          chromePath = execSync('which chromium-browser', { encoding: 'utf8' }).trim();
+        } catch {
+          chromePath = execSync('which chromium', { encoding: 'utf8' }).trim();
+        }
+      }
+    } else if (os === 'win32') {
+      const possiblePaths = [
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        join(homedir(), 'AppData\\Local\\Google\\Chrome\\Application\\chrome.exe')
+      ];
+      chromePath = possiblePaths.find(p => existsSync(p));
+    }
+    
+    if (!chromePath || !existsSync(chromePath)) {
+      console.error('❌ Chrome/Chromium not found. Please install Chrome or Chromium.');
+      process.exit(1);
+    }
+    
+    // Set up user data directory
+    if (!userDataDir) {
+      userDataDir = join(homedir(), '.chrome-debug-data');
+    }
+    
+    if (!existsSync(userDataDir)) {
+      mkdirSync(userDataDir, { recursive: true });
+    }
+    
+    // Chrome arguments
+    const chromeArgs = [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${userDataDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-default-apps',
+      '--disable-popup-blocking',
+      '--disable-translate',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding'
+    ];
+    
+    console.log(`📂 User data directory: ${userDataDir}`);
+    console.log(`🌐 Debug endpoint: http://localhost:${port}`);
+    console.log(`🔗 WebSocket endpoint: ws://localhost:${port}`);
+    console.log(`\n💡 To connect from MCP, use browserWSEndpoint: "ws://localhost:${port}"\n`);
+    
+    // Launch Chrome
+    const chrome = spawn(chromePath, chromeArgs, {
+      stdio: 'ignore',
+      detached: true
+    });
+    
+    chrome.on('error', (error) => {
+      console.error('❌ Failed to start Chrome:', error);
+      process.exit(1);
+    });
+    
+    // Don't wait for Chrome to exit, let it run in background
+    chrome.unref();
+    
+    console.log(`✅ Chrome started successfully with PID ${chrome.pid}`);
+    console.log('🚪 Chrome is running in the background. Close manually when done.');
+    
+    // Give Chrome a moment to start
+    setTimeout(() => {
+      console.log('\n🔧 You can now use the MCP server with:');
+      console.log('   puppeteer_launch with browserWSEndpoint: "ws://localhost:9222"');
+    }, 2000);
+  }
+
   showHelp() {
     console.log('🤖 Puppeteer MCP Claude - Browser Automation for Claude Desktop & Code\n');
     console.log('Usage:');
@@ -339,6 +427,7 @@ class PuppeteerMCPInstaller {
     console.log('  npx puppeteer-mcp-claude uninstall  # Remove from all Claude apps');
     console.log('  npx puppeteer-mcp-claude status     # Check installation status');
     console.log('  npx puppeteer-mcp-claude serve      # Start the MCP server (used internally)');
+    console.log('  npx puppeteer-mcp-claude chrome     # Start Chrome with remote debugging');
     console.log('  npx puppeteer-mcp-claude help       # Show this help message');
     console.log('\n🖥️  Supported Platforms:');
     console.log('  • macOS - Claude Desktop + Claude Code');
@@ -356,6 +445,14 @@ class PuppeteerMCPInstaller {
     console.log('  • puppeteer_wait_for_selector - Wait for elements');
     console.log('  • puppeteer_close_page     - Close browser tab');
     console.log('  • puppeteer_close_browser  - Close entire browser');
+    console.log('  • puppeteer_set_cookies    - Manage cookies');
+    console.log('  • puppeteer_get_cookies    - Read cookies');
+    console.log('  • puppeteer_delete_cookies - Delete cookies');
+    console.log('  • puppeteer_set_request_interception - Block/modify requests');
+    console.log('\n🌐 Chrome Remote Debugging:');
+    console.log('  npx puppeteer-mcp-claude chrome [port] [dataDir]');
+    console.log('  Example: npx puppeteer-mcp-claude chrome 9222');
+    console.log('  Then use browserWSEndpoint: "ws://localhost:9222" in puppeteer_launch');
     console.log('\nDocumentation: https://github.com/jaenster/puppeteer-mcp-claude');
     console.log('Issues: https://github.com/jaenster/puppeteer-mcp-claude/issues');
   }
@@ -378,6 +475,11 @@ async function main() {
       break;
     case 'serve':
       await installer.serve();
+      break;
+    case 'chrome':
+      const port = process.argv[3] ? parseInt(process.argv[3]) : 9222;
+      const userDataDir = process.argv[4] || null;
+      await installer.startChrome(port, userDataDir);
       break;
     case 'help':
     case '--help':

@@ -51,12 +51,37 @@ class PuppeteerMCPServer {
         tools: [
           {
             name: 'puppeteer_launch',
-            description: 'Launch a new Puppeteer browser instance',
+            description: 'Launch a new Puppeteer browser instance or connect to existing Chrome with remote debugging',
             inputSchema: {
               type: 'object',
               properties: {
                 headless: { type: 'boolean', default: true },
                 args: { type: 'array', items: { type: 'string' } },
+                executablePath: { type: 'string', description: 'Path to Chrome executable' },
+                browserWSEndpoint: { type: 'string', description: 'WebSocket endpoint for existing Chrome instance (e.g., ws://localhost:9222)' },
+                userDataDir: { type: 'string', description: 'Path to user data directory' },
+                userAgent: { type: 'string', description: 'Custom user agent string' },
+                viewport: { 
+                  type: 'object', 
+                  properties: {
+                    width: { type: 'number', default: 1366 },
+                    height: { type: 'number', default: 768 },
+                    deviceScaleFactor: { type: 'number', default: 1 },
+                    isMobile: { type: 'boolean', default: false },
+                    hasTouch: { type: 'boolean', default: false },
+                    isLandscape: { type: 'boolean', default: true }
+                  }
+                },
+                proxy: {
+                  type: 'object',
+                  properties: {
+                    server: { type: 'string' },
+                    username: { type: 'string' },
+                    password: { type: 'string' }
+                  }
+                },
+                stealth: { type: 'boolean', default: false, description: 'Enable stealth mode to avoid detection' },
+                slowMo: { type: 'number', description: 'Delay between actions in milliseconds' }
               },
             },
           },
@@ -178,6 +203,90 @@ class PuppeteerMCPServer {
               properties: {},
             },
           },
+          {
+            name: 'puppeteer_set_cookies',
+            description: 'Set cookies for a page',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pageId: { type: 'string' },
+                cookies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      value: { type: 'string' },
+                      domain: { type: 'string' },
+                      path: { type: 'string', default: '/' },
+                      expires: { type: 'number' },
+                      httpOnly: { type: 'boolean', default: false },
+                      secure: { type: 'boolean', default: false },
+                      sameSite: { type: 'string', enum: ['Strict', 'Lax', 'None'] }
+                    },
+                    required: ['name', 'value']
+                  }
+                }
+              },
+              required: ['pageId', 'cookies'],
+            },
+          },
+          {
+            name: 'puppeteer_get_cookies',
+            description: 'Get cookies from a page',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pageId: { type: 'string' },
+                urls: { type: 'array', items: { type: 'string' } }
+              },
+              required: ['pageId'],
+            },
+          },
+          {
+            name: 'puppeteer_delete_cookies',
+            description: 'Delete cookies from a page',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pageId: { type: 'string' },
+                cookies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      domain: { type: 'string' },
+                      path: { type: 'string' }
+                    },
+                    required: ['name']
+                  }
+                }
+              },
+              required: ['pageId', 'cookies'],
+            },
+          },
+          {
+            name: 'puppeteer_set_request_interception',
+            description: 'Enable request/response interception for a page',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                pageId: { type: 'string' },
+                enable: { type: 'boolean', default: true },
+                blockResources: {
+                  type: 'array',
+                  items: { type: 'string', enum: ['document', 'stylesheet', 'image', 'media', 'font', 'script', 'texttrack', 'xhr', 'fetch', 'eventsource', 'websocket', 'manifest', 'other'] },
+                  description: 'Resource types to block'
+                },
+                modifyHeaders: {
+                  type: 'object',
+                  description: 'Headers to add/modify in requests'
+                }
+              },
+              required: ['pageId'],
+            },
+          },
         ] as Tool[],
       };
     });
@@ -209,6 +318,14 @@ class PuppeteerMCPServer {
             return await this.handleClosePage(args);
           case 'puppeteer_close_browser':
             return await this.handleCloseBrowser(args);
+          case 'puppeteer_set_cookies':
+            return await this.handleSetCookies(args);
+          case 'puppeteer_get_cookies':
+            return await this.handleGetCookies(args);
+          case 'puppeteer_delete_cookies':
+            return await this.handleDeleteCookies(args);
+          case 'puppeteer_set_request_interception':
+            return await this.handleSetRequestInterception(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -226,22 +343,114 @@ class PuppeteerMCPServer {
   }
 
   private async handleLaunch(args: any) {
-    const { headless = true, args: browserArgs = [] } = args;
+    const { 
+      headless = true, 
+      args: browserArgs = [], 
+      executablePath,
+      browserWSEndpoint,
+      userDataDir,
+      userAgent,
+      viewport,
+      proxy,
+      stealth = false,
+      slowMo
+    } = args;
     
     if (this.browser) {
       await this.browser.close();
     }
 
-    this.browser = await puppeteer.launch({
+    let launchOptions: any = {
       headless,
+      slowMo,
       args: [...browserArgs, '--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    };
 
+    if (executablePath) {
+      launchOptions.executablePath = executablePath;
+    }
+
+    if (userDataDir) {
+      launchOptions.userDataDir = userDataDir;
+    }
+
+    if (stealth) {
+      launchOptions.args.push(
+        '--disable-blink-features=AutomationControlled',
+        '--disable-features=VizDisplayCompositor',
+        '--disable-web-security',
+        '--disable-features=site-per-process',
+        '--disable-dev-shm-usage',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-extensions',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-default-apps',
+        '--disable-popup-blocking'
+      );
+    }
+
+    if (proxy?.server) {
+      launchOptions.args.push(`--proxy-server=${proxy.server}`);
+    }
+
+    if (browserWSEndpoint) {
+      this.browser = await puppeteer.connect({
+        browserWSEndpoint,
+      });
+    } else {
+      this.browser = await puppeteer.launch(launchOptions);
+    }
+
+    if (viewport || userAgent || stealth) {
+      const pages = await this.browser.pages();
+      if (pages.length > 0) {
+        const page = pages[0];
+        
+        if (viewport) {
+          await page.setViewport(viewport);
+        }
+        
+        if (userAgent) {
+          await page.setUserAgent(userAgent);
+        } else if (stealth) {
+          await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        }
+
+        if (stealth) {
+          await page.evaluateOnNewDocument(`() => {
+            Object.defineProperty(navigator, 'webdriver', { 
+              get: () => undefined,
+              configurable: true 
+            });
+            Object.defineProperty(navigator, 'plugins', { 
+              get: () => [1, 2, 3, 4, 5],
+              configurable: true 
+            });
+            Object.defineProperty(navigator, 'languages', { 
+              get: () => ['en-US', 'en'],
+              configurable: true 
+            });
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'permissions', {
+              get: () => ({
+                query: () => Promise.resolve({ state: 'granted' })
+              }),
+              configurable: true
+            });
+          }`);
+        }
+      }
+    }
+
+    const connectionMethod = browserWSEndpoint ? 'Connected to existing browser' : 'Browser launched';
     return {
       content: [
         {
           type: 'text',
-          text: 'Browser launched successfully',
+          text: `${connectionMethod} successfully`,
         },
       ],
     };
@@ -449,6 +658,100 @@ class PuppeteerMCPServer {
         {
           type: 'text',
           text: 'Browser closed',
+        },
+      ],
+    };
+  }
+
+  private async handleSetCookies(args: any) {
+    const { pageId, cookies } = args;
+    const page = this.pages.get(pageId);
+    
+    if (!page) {
+      throw new Error(`Page ${pageId} not found`);
+    }
+
+    await page.setCookie(...cookies);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Set ${cookies.length} cookie(s) for page ${pageId}`,
+        },
+      ],
+    };
+  }
+
+  private async handleGetCookies(args: any) {
+    const { pageId, urls } = args;
+    const page = this.pages.get(pageId);
+    
+    if (!page) {
+      throw new Error(`Page ${pageId} not found`);
+    }
+
+    const cookies = urls ? await page.cookies(...urls) : await page.cookies();
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Retrieved cookies: ${JSON.stringify(cookies, null, 2)}`,
+        },
+      ],
+    };
+  }
+
+  private async handleDeleteCookies(args: any) {
+    const { pageId, cookies } = args;
+    const page = this.pages.get(pageId);
+    
+    if (!page) {
+      throw new Error(`Page ${pageId} not found`);
+    }
+
+    await page.deleteCookie(...cookies);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Deleted ${cookies.length} cookie(s) from page ${pageId}`,
+        },
+      ],
+    };
+  }
+
+  private async handleSetRequestInterception(args: any) {
+    const { pageId, enable = true, blockResources = [], modifyHeaders = {} } = args;
+    const page = this.pages.get(pageId);
+    
+    if (!page) {
+      throw new Error(`Page ${pageId} not found`);
+    }
+
+    await page.setRequestInterception(enable);
+
+    if (enable) {
+      page.on('request', (request) => {
+        const resourceType = request.resourceType();
+        
+        if (blockResources.includes(resourceType)) {
+          request.abort();
+          return;
+        }
+
+        const headers = { ...request.headers(), ...modifyHeaders };
+        request.continue({ headers });
+      });
+    }
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Request interception ${enable ? 'enabled' : 'disabled'} for page ${pageId}`,
         },
       ],
     };
