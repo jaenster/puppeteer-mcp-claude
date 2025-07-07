@@ -4,18 +4,23 @@ A Model Context Protocol (MCP) server that provides Claude Code with comprehensi
 
 ## 🚀 Quick Start
 
-**Want browser automation in Claude Code? Run this one command:**
+**Want browser automation in Claude Desktop & Claude Code? Run this one command:**
 
 ```bash
 npx puppeteer-mcp-claude install
 ```
 
 **That's it!** The installer will automatically:
-- Set up everything for Claude Code
-- Configure all the browser automation tools
-- Verify the installation works
+- Detect Claude Desktop and Claude Code on your system
+- Configure both applications with browser automation tools
+- Verify everything works across all detected Claude apps
 
-Then restart Claude Code and ask: *"Take a screenshot of google.com"* to test it out!
+Then restart your Claude apps and ask: *"Take a screenshot of google.com"* to test it out!
+
+### 🖥️ Cross-Platform Support
+- **macOS**: Claude Desktop + Claude Code
+- **Linux**: Claude Desktop + Claude Code  
+- **Windows**: Claude Code only
 
 ## Features
 
@@ -47,7 +52,7 @@ Then restart Claude Code and ask: *"Take a screenshot of google.com"* to test it
 
 ### 🚀 Automatic Setup (Recommended)
 
-**Get browser automation in Claude Code with just one command:**
+**Get browser automation in all your Claude apps with just one command:**
 
 ```bash
 npx puppeteer-mcp-claude install
@@ -55,17 +60,23 @@ npx puppeteer-mcp-claude install
 
 **What happens automatically:**
 1. ✅ Downloads the latest version from npm
-2. ✅ Creates `~/.claude/claude_desktop_config.json` if needed
-3. ✅ Adds the MCP server configuration to Claude Code
-4. ✅ Verifies everything is working correctly
-5. ✅ Shows you exactly what to do next
+2. ✅ **Detects Claude Desktop and Claude Code** on your system
+3. ✅ **Configures both applications** automatically 
+4. ✅ Creates config files if needed (cross-platform paths)
+5. ✅ Verifies everything is working correctly
+6. ✅ Shows you exactly what to do next
+
+**Cross-platform detection:**
+- **macOS**: `~/Library/Application Support/Claude/` (Desktop) + `~/.claude/` (Code)
+- **Linux**: `~/.config/Claude/` (Desktop) + `~/.claude/` (Code)
+- **Windows**: `~/.claude/` (Code only)
 
 **After installation:**
-- Restart Claude Code if it's running
+- Restart any running Claude applications
 - Ask Claude: *"List all available tools"*
 - You'll see 11 new puppeteer tools for browser automation!
 
-**No manual configuration needed!** The installer handles everything.
+**No manual configuration needed!** The installer handles everything across all platforms.
 
 ### Manual Installation
 
@@ -106,9 +117,9 @@ For development or contribution:
 
 | Command | Description |
 |---------|-------------|
-| `npx puppeteer-mcp-claude install` | Install and configure for Claude Code |
-| `npx puppeteer-mcp-claude uninstall` | Remove from Claude Code |
-| `npx puppeteer-mcp-claude status` | Check installation status |
+| `npx puppeteer-mcp-claude install` | Install and configure for Claude Desktop & Code |
+| `npx puppeteer-mcp-claude uninstall` | Remove from all Claude applications |
+| `npx puppeteer-mcp-claude status` | Check installation status across all apps |
 | `npx puppeteer-mcp-claude help` | Show help and available tools |
 
 ## Alternative Installation Methods

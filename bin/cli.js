@@ -3,31 +3,78 @@
 const { execSync, spawn } = require('child_process');
 const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const { join } = require('path');
-const { homedir } = require('os');
+const { homedir, platform } = require('os');
 const path = require('path');
 
 class PuppeteerMCPInstaller {
   constructor() {
     this.packageDir = path.dirname(__dirname);
-    this.claudeConfigPath = join(homedir(), '.claude', 'claude_desktop_config.json');
     this.serverName = 'puppeteer-mcp-claude';
+    this.configs = this.getConfigPaths();
+  }
+
+  getConfigPaths() {
+    const home = homedir();
+    const os = platform();
+    
+    const configs = [];
+    
+    // Claude Desktop paths
+    if (os === 'darwin') { // macOS
+      configs.push({
+        name: 'Claude Desktop (macOS)',
+        path: join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'),
+        type: 'desktop'
+      });
+    } else if (os === 'linux') {
+      configs.push({
+        name: 'Claude Desktop (Linux)',
+        path: join(home, '.config', 'Claude', 'claude_desktop_config.json'),
+        type: 'desktop'
+      });
+    }
+    
+    // Claude Code paths (cross-platform)
+    configs.push({
+      name: 'Claude Code',
+      path: join(home, '.claude', 'claude_desktop_config.json'),
+      type: 'code'
+    });
+    
+    return configs;
   }
 
   async install() {
     console.log('🚀 Installing Puppeteer MCP Claude...\n');
 
     try {
-      await this.ensureClaudeDirectory();
-      await this.updateClaudeConfig();
-      await this.verifyInstallation();
+      const installedConfigs = await this.detectAndInstall();
+      
+      if (installedConfigs.length === 0) {
+        console.log('⚠️  No Claude applications detected.');
+        console.log('   Creating configuration for Claude Code...');
+        await this.installForConfig(this.configs.find(c => c.type === 'code'));
+        installedConfigs.push('Claude Code');
+      }
       
       console.log('\n✅ Puppeteer MCP Claude installed successfully!');
+      console.log(`\n📱 Installed for: ${installedConfigs.join(', ')}`);
+      
       console.log('\n📋 Next steps:');
-      console.log('   1. Restart Claude Code if it\'s running');
-      console.log('   2. In Claude Code, ask: "List all available tools"');
-      console.log('   3. You should see puppeteer tools listed');
+      installedConfigs.forEach(app => {
+        if (app.includes('Desktop')) {
+          console.log(`   • Restart Claude Desktop if it's running`);
+        }
+        if (app.includes('Code')) {
+          console.log(`   • Restart Claude Code if it's running`);
+        }
+      });
+      
+      console.log('   • Ask Claude: "List all available tools"');
+      console.log('   • You should see 11 puppeteer tools listed');
+      
       console.log('\n🔧 Management commands:');
-      console.log('   npx puppeteer-mcp-claude uninstall  # Remove from Claude Code');
+      console.log('   npx puppeteer-mcp-claude uninstall  # Remove from all Claude apps');
       console.log('   npx puppeteer-mcp-claude status     # Check installation status');
       console.log('\n📖 Documentation: https://github.com/jaenster/puppeteer-mcp-claude');
       
@@ -37,124 +84,95 @@ class PuppeteerMCPInstaller {
     }
   }
 
-  async uninstall() {
-    console.log('🗑️  Uninstalling Puppeteer MCP Claude...\n');
+  async detectAndInstall() {
+    const installedConfigs = [];
     
-    if (!existsSync(this.claudeConfigPath)) {
-      console.log('⚠️  No Claude Code configuration found');
-      return;
-    }
-
-    try {
-      const configContent = readFileSync(this.claudeConfigPath, 'utf8');
-      const config = JSON.parse(configContent);
+    console.log('🔍 Detecting Claude applications...\n');
+    
+    for (const config of this.configs) {
+      const hasExistingConfig = existsSync(config.path);
+      const hasClaudeApp = await this.detectClaudeApp(config);
       
-      if (config.mcpServers?.[this.serverName]) {
-        delete config.mcpServers[this.serverName];
-        writeFileSync(this.claudeConfigPath, JSON.stringify(config, null, 2));
-        console.log('✅ Puppeteer MCP Claude removed from Claude Code configuration');
-        console.log('   Restart Claude Code to complete removal');
+      if (hasExistingConfig || hasClaudeApp) {
+        console.log(`✅ Found ${config.name}`);
+        await this.installForConfig(config);
+        installedConfigs.push(config.name);
       } else {
-        console.log('⚠️  Puppeteer MCP Claude was not found in configuration');
+        console.log(`⚪ ${config.name} not detected`);
       }
-    } catch (error) {
-      console.error('❌ Failed to remove configuration:', error.message);
     }
+    
+    return installedConfigs;
   }
 
-  async status() {
-    console.log('📊 Puppeteer MCP Claude Status\n');
-    
-    if (!existsSync(this.claudeConfigPath)) {
-      console.log('❌ No Claude Code configuration found');
-      console.log('   Run: npx puppeteer-mcp-claude install');
-      return;
-    }
-
-    try {
-      const configContent = readFileSync(this.claudeConfigPath, 'utf8');
-      const config = JSON.parse(configContent);
-      
-      if (config.mcpServers?.[this.serverName]) {
-        console.log('✅ Puppeteer MCP Claude is installed');
-        console.log('\n📋 Configuration:');
-        const serverConfig = config.mcpServers[this.serverName];
-        console.log(`   Command: ${serverConfig.command}`);
-        console.log(`   Args: ${serverConfig.args?.join(' ') || 'none'}`);
-        console.log(`   Working Directory: ${serverConfig.cwd || 'not set'}`);
-        console.log(`   Environment: ${JSON.stringify(serverConfig.env || {})}`);
-        
-        // Check if the server executable exists
-        if (serverConfig.cwd && existsSync(join(serverConfig.cwd, 'dist', 'index.js'))) {
-          console.log('✅ Server executable found');
-        } else {
-          console.log('⚠️  Server executable not found - may need to rebuild');
+  async detectClaudeApp(config) {
+    if (config.type === 'desktop') {
+      // Check if Claude Desktop is installed
+      const os = platform();
+      if (os === 'darwin') {
+        return existsSync('/Applications/Claude.app') || 
+               existsSync(join(homedir(), 'Applications', 'Claude.app'));
+      } else if (os === 'linux') {
+        try {
+          execSync('which claude-desktop', { stdio: 'ignore' });
+          return true;
+        } catch {
+          // Check common installation paths
+          return existsSync('/usr/bin/claude-desktop') ||
+                 existsSync('/usr/local/bin/claude-desktop') ||
+                 existsSync(join(homedir(), '.local', 'bin', 'claude-desktop'));
         }
-      } else {
-        console.log('❌ Puppeteer MCP Claude is not installed');
-        console.log('   Run: npx puppeteer-mcp-claude install');
       }
-      
-      // Show all MCP servers
-      if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
-        console.log('\n📋 All configured MCP servers:');
-        Object.keys(config.mcpServers).forEach(serverName => {
-          const isOurs = serverName === this.serverName ? ' ← (this package)' : '';
-          console.log(`   • ${serverName}${isOurs}`);
-        });
+    } else if (config.type === 'code') {
+      // Check if Claude Code is installed
+      try {
+        execSync('which claude', { stdio: 'ignore' });
+        return true;
+      } catch {
+        return false;
       }
-      
-    } catch (error) {
-      console.error('❌ Failed to read configuration:', error.message);
     }
+    return false;
   }
 
-  async ensureClaudeDirectory() {
-    const claudeDir = join(homedir(), '.claude');
+  async installForConfig(config) {
+    console.log(`📝 Configuring ${config.name}...`);
     
-    if (!existsSync(claudeDir)) {
-      console.log('📁 Creating .claude directory...');
-      mkdirSync(claudeDir, { recursive: true });
+    // Ensure directory exists
+    const configDir = path.dirname(config.path);
+    if (!existsSync(configDir)) {
+      console.log(`📁 Creating directory: ${configDir}`);
+      mkdirSync(configDir, { recursive: true });
     }
     
-    console.log('✅ Claude directory ready');
-  }
-
-  async updateClaudeConfig() {
-    console.log('📝 Updating Claude Code configuration...');
-    
-    let config = {};
+    // Read or create config
+    let claudeConfig = {};
     let hasExistingConfig = false;
 
-    // Read existing config if it exists
-    if (existsSync(this.claudeConfigPath)) {
+    if (existsSync(config.path)) {
       try {
-        const configContent = readFileSync(this.claudeConfigPath, 'utf8');
-        config = JSON.parse(configContent);
+        const configContent = readFileSync(config.path, 'utf8');
+        claudeConfig = JSON.parse(configContent);
         hasExistingConfig = true;
-        console.log('📖 Found existing configuration');
+        console.log(`📖 Found existing configuration`);
       } catch (error) {
-        console.log('⚠️  Could not parse existing config, creating new one');
-        config = {};
+        console.log(`⚠️  Could not parse existing config, creating new one`);
+        claudeConfig = {};
       }
     }
 
     // Initialize mcpServers if it doesn't exist
-    if (!config.mcpServers) {
-      config.mcpServers = {};
+    if (!claudeConfig.mcpServers) {
+      claudeConfig.mcpServers = {};
     }
 
-    // Check if server already exists
-    if (config.mcpServers[this.serverName]) {
-      console.log('⚠️  Puppeteer MCP Claude already configured');
-      console.log('   Updating existing configuration...');
+    // Check if our server already exists
+    if (claudeConfig.mcpServers[this.serverName]) {
+      console.log(`⚠️  Puppeteer MCP already configured, updating...`);
     }
-
-    // Get the globally installed package location
-    const globalPackageDir = this.getGlobalPackageDir();
 
     // Add/update our MCP server configuration
-    config.mcpServers[this.serverName] = {
+    claudeConfig.mcpServers[this.serverName] = {
       command: 'npx',
       args: ['puppeteer-mcp-claude', 'serve'],
       env: {
@@ -163,76 +181,130 @@ class PuppeteerMCPInstaller {
     };
 
     // Write the updated configuration
-    writeFileSync(this.claudeConfigPath, JSON.stringify(config, null, 2));
+    writeFileSync(config.path, JSON.stringify(claudeConfig, null, 2));
     
     if (hasExistingConfig) {
-      console.log('✅ Configuration updated');
+      console.log(`✅ Configuration updated: ${config.path}`);
     } else {
-      console.log('✅ Configuration created');
+      console.log(`✅ Configuration created: ${config.path}`);
     }
+
+    // Verify the installation
+    await this.verifyInstallationForConfig(config, claudeConfig);
   }
 
-  getGlobalPackageDir() {
-    try {
-      // Try to get the package directory from npm
-      const npmRoot = execSync('npm root -g', { encoding: 'utf8' }).trim();
-      const packagePath = join(npmRoot, 'puppeteer-mcp-claude');
-      
-      if (existsSync(packagePath)) {
-        return packagePath;
-      }
-    } catch (error) {
-      // Fallback: use the current package directory
-      console.log('⚠️  Using local package directory as fallback');
-    }
+  async verifyInstallationForConfig(config, claudeConfig) {
+    console.log(`🔍 Verifying ${config.name} installation...`);
     
-    return this.packageDir;
-  }
-
-  async verifyInstallation() {
-    console.log('🔍 Verifying installation...');
-    
-    // Check if config file exists and is valid
-    if (!existsSync(this.claudeConfigPath)) {
-      throw new Error('Configuration file was not created');
-    }
-
     try {
-      const configContent = readFileSync(this.claudeConfigPath, 'utf8');
-      const config = JSON.parse(configContent);
-      
-      if (!config.mcpServers?.[this.serverName]) {
-        throw new Error('Puppeteer MCP Claude not found in configuration');
+      if (!claudeConfig.mcpServers?.[this.serverName]) {
+        throw new Error(`${this.serverName} not found in configuration`);
       }
       
-      const serverConfig = config.mcpServers[this.serverName];
+      const serverConfig = claudeConfig.mcpServers[this.serverName];
       
-      // Verify configuration structure
       if (!serverConfig.command || !serverConfig.args) {
         throw new Error('Incomplete MCP server configuration');
       }
       
-      // Verify server configuration (skip path check for npx commands)
-      let serverInfo = '';
+      // For npx commands, verify structure
       if (serverConfig.command === 'npx' && serverConfig.args[0] === 'puppeteer-mcp-claude') {
-        // For npx commands, we just verify the structure is correct
-        console.log('✅ NPX configuration verified');
-        serverInfo = `${serverConfig.command} ${serverConfig.args.join(' ')}`;
+        console.log(`✅ ${config.name} configuration verified`);
       } else {
-        // For direct paths, check if the file exists
-        const serverPath = serverConfig.args[0];
-        if (!existsSync(serverPath)) {
-          throw new Error(`Server executable not found at: ${serverPath}`);
-        }
-        console.log(`✅ Server executable found: ${serverPath}`);
-        serverInfo = serverPath;
+        throw new Error('Invalid server configuration');
       }
       
-      console.log('✅ Installation verified');
-      console.log(`   Server: ${serverInfo}`);
-      
     } catch (error) {
-      throw new Error(`Installation verification failed: ${error.message}`);
+      throw new Error(`${config.name} verification failed: ${error.message}`);
+    }
+  }
+
+  async uninstall() {
+    console.log('🗑️  Uninstalling Puppeteer MCP Claude...\n');
+    
+    let removedCount = 0;
+    
+    for (const config of this.configs) {
+      if (existsSync(config.path)) {
+        try {
+          const configContent = readFileSync(config.path, 'utf8');
+          const claudeConfig = JSON.parse(configContent);
+          
+          if (claudeConfig.mcpServers?.[this.serverName]) {
+            delete claudeConfig.mcpServers[this.serverName];
+            writeFileSync(config.path, JSON.stringify(claudeConfig, null, 2));
+            console.log(`✅ Removed from ${config.name}`);
+            removedCount++;
+          } else {
+            console.log(`⚪ Not configured in ${config.name}`);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to remove from ${config.name}:`, error.message);
+        }
+      } else {
+        console.log(`⚪ ${config.name} config not found`);
+      }
+    }
+    
+    if (removedCount > 0) {
+      console.log(`\n✅ Puppeteer MCP Claude removed from ${removedCount} configuration(s)`);
+      console.log('   Restart Claude applications to complete removal');
+    } else {
+      console.log('\n⚠️  Puppeteer MCP Claude was not found in any configurations');
+    }
+  }
+
+  async status() {
+    console.log('📊 Puppeteer MCP Claude Status\n');
+    
+    let foundCount = 0;
+    
+    for (const config of this.configs) {
+      console.log(`📱 ${config.name}:`);
+      
+      if (!existsSync(config.path)) {
+        console.log(`   ❌ No configuration found`);
+        console.log(`   📁 Config path: ${config.path}`);
+        continue;
+      }
+
+      try {
+        const configContent = readFileSync(config.path, 'utf8');
+        const claudeConfig = JSON.parse(configContent);
+        
+        if (claudeConfig.mcpServers?.[this.serverName]) {
+          console.log(`   ✅ Puppeteer MCP Claude is installed`);
+          foundCount++;
+          
+          const serverConfig = claudeConfig.mcpServers[this.serverName];
+          console.log(`   📋 Command: ${serverConfig.command} ${serverConfig.args?.join(' ') || ''}`);
+          console.log(`   🌍 Environment: ${JSON.stringify(serverConfig.env || {})}`);
+          
+          // Show app detection
+          const appDetected = await this.detectClaudeApp(config);
+          console.log(`   🔍 App detected: ${appDetected ? '✅ Yes' : '❌ No'}`);
+        } else {
+          console.log(`   ❌ Puppeteer MCP Claude is not installed`);
+        }
+        
+        // Show all MCP servers for this config
+        if (claudeConfig.mcpServers && Object.keys(claudeConfig.mcpServers).length > 0) {
+          console.log(`   📋 All MCP servers: ${Object.keys(claudeConfig.mcpServers).map(name => 
+            name === this.serverName ? `${name} ← (this package)` : name
+          ).join(', ')}`);
+        }
+        
+      } catch (error) {
+        console.error(`   ❌ Failed to read configuration: ${error.message}`);
+      }
+      
+      console.log(); // Empty line between configs
+    }
+    
+    if (foundCount === 0) {
+      console.log('💡 To install, run: npx puppeteer-mcp-claude install');
+    } else {
+      console.log(`✅ Installed in ${foundCount} of ${this.configs.length} possible locations`);
     }
   }
 
@@ -261,13 +333,17 @@ class PuppeteerMCPInstaller {
   }
 
   showHelp() {
-    console.log('🤖 Puppeteer MCP Claude - Browser Automation for Claude Code\n');
+    console.log('🤖 Puppeteer MCP Claude - Browser Automation for Claude Desktop & Code\n');
     console.log('Usage:');
-    console.log('  npx puppeteer-mcp-claude install    # Install MCP server for Claude Code');
-    console.log('  npx puppeteer-mcp-claude uninstall  # Remove MCP server from Claude Code');
+    console.log('  npx puppeteer-mcp-claude install    # Install for Claude Desktop & Code');
+    console.log('  npx puppeteer-mcp-claude uninstall  # Remove from all Claude apps');
     console.log('  npx puppeteer-mcp-claude status     # Check installation status');
     console.log('  npx puppeteer-mcp-claude serve      # Start the MCP server (used internally)');
     console.log('  npx puppeteer-mcp-claude help       # Show this help message');
+    console.log('\n🖥️  Supported Platforms:');
+    console.log('  • macOS - Claude Desktop + Claude Code');
+    console.log('  • Linux - Claude Desktop + Claude Code'); 
+    console.log('  • Windows - Claude Code only');
     console.log('\nAvailable Browser Tools:');
     console.log('  • puppeteer_launch         - Launch browser instance');
     console.log('  • puppeteer_new_page       - Create new browser tab');
