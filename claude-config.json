@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "puppeteer": {
+      "command": "ts-node",
+      "args": ["src/index.ts"],
+      "cwd": "/Users/jaenster/code/claude/mcp-puppeteer",
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  }
+}

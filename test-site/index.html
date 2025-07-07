@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Site for MCP Puppeteer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="email"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            display: none;
+        }
+        .test-elements {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .click-me {
+            background-color: #28a745;
+            margin: 10px 5px;
+        }
+        .click-me:hover {
+            background-color: #218838;
+        }
+        #dynamic-content {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MCP Puppeteer Test Site</h1>
+        
+        <form id="test-form">
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <button type="submit">Submit Form</button>
+        </form>
+        
+        <div id="result" class="result">
+            <h3>Form Submitted Successfully!</h3>
+            <p>Name: <span id="result-name"></span></p>
+            <p>Email: <span id="result-email"></span></p>
+        </div>
+        
+        <div class="test-elements">
+            <h3>Test Elements</h3>
+            <button class="click-me" onclick="showDynamicContent()">Click to Show Dynamic Content</button>
+            <button class="click-me" onclick="changeTitle()">Change Page Title</button>
+            <button class="click-me" onclick="addTestElement()">Add Test Element</button>
+            
+            <div id="dynamic-content">
+                <p>This content was loaded dynamically!</p>
+                <p>Current time: <span id="current-time"></span></p>
+            </div>
+            
+            <div id="test-elements-container"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('test-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            
+            document.getElementById('result-name').textContent = name;
+            document.getElementById('result-email').textContent = email;
+            document.getElementById('result').style.display = 'block';
+            
+            // Clear form
+            this.reset();
+        });
+        
+        function showDynamicContent() {
+            const dynamicContent = document.getElementById('dynamic-content');
+            dynamicContent.style.display = 'block';
+            document.getElementById('current-time').textContent = new Date().toLocaleTimeString();
+        }
+        
+        function changeTitle() {
+            document.title = 'Title Changed by Puppeteer Test - ' + new Date().toLocaleTimeString();
+            alert('Page title changed!');
+        }
+        
+        function addTestElement() {
+            const container = document.getElementById('test-elements-container');
+            const newElement = document.createElement('div');
+            newElement.className = 'test-element';
+            newElement.style.cssText = 'margin: 10px 0; padding: 10px; background-color: #e9ecef; border-radius: 4px;';
+            newElement.innerHTML = `<p>Test element added at: ${new Date().toLocaleTimeString()}</p>`;
+            container.appendChild(newElement);
+        }
+        
+        // Add a test element that appears after 2 seconds
+        setTimeout(function() {
+            const delayedElement = document.createElement('div');
+            delayedElement.id = 'delayed-element';
+            delayedElement.style.cssText = 'margin: 20px 0; padding: 15px; background-color: #cce5ff; border-radius: 4px;';
+            delayedElement.innerHTML = '<p>This element appeared after 2 seconds - perfect for testing waitForSelector!</p>';
+            document.querySelector('.container').appendChild(delayedElement);
+        }, 2000);
+    </script>
+</body>
+</html>
