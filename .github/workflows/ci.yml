@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [ main, develop ]
+    paths-ignore:
+      - '**/*[skip ci]*'  # Skip CI for version bump commits
   pull_request:
     branches: [ main ]
 

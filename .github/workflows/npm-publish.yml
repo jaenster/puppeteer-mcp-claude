@@ -4,13 +4,14 @@ on:
   push:
     tags:
       - 'v*'  # Trigger on version tags like v1.0.0, v0.1.0, etc.
+  workflow_call:  # Allow this workflow to be called by other workflows
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     
     permissions:
-      contents: read
+      contents: write  # Need write for releases
       id-token: write  # Required for npm provenance
     
     steps:
