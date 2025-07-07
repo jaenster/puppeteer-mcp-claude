@@ -1,6 +1,6 @@
 {
   "name": "puppeteer-mcp-claude",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "main": "dist/index.js",
   "bin": {
     "puppeteer-mcp-claude": "./bin/cli.js"
