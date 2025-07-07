@@ -143,7 +143,7 @@ class PuppeteerMCPInstaller {
       console.log('🔧 Using claude mcp add command...');
       execSync(`claude mcp add ${this.serverName} "npx puppeteer-mcp-claude serve"`, { 
         stdio: 'inherit',
-        cwd: this.packageDir 
+        cwd: process.cwd()
       });
       console.log(`✅ Successfully added via claude mcp add`);
       return;
