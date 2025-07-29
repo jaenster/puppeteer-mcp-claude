@@ -1,5 +1,7 @@
 # MCP Puppeteer Server
 
+[![npm version](https://badge.fury.io/js/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
+
 A Model Context Protocol (MCP) server that provides Claude Code with comprehensive browser automation capabilities through Puppeteer. This server allows Claude to interact with web pages, take screenshots, execute JavaScript, and perform various browser automation tasks.
 
 ## 🚀 Quick Start

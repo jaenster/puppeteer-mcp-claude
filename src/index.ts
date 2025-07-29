@@ -8,13 +8,34 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import puppeteer, { Browser, Page } from 'puppeteer';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 class PuppeteerMCPServer {
   private server: Server;
   private browser: Browser | null = null;
   private pages: Map<string, Page> = new Map();
+  private logFile: string;
 
   constructor() {
+    // Set up logging
+    const logDir = path.join(os.homedir(), '.puppeteer-mcp-logs');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+    this.logFile = path.join(logDir, `mcp-server-${Date.now()}.log`);
+    
+    this.log('=== Puppeteer MCP Server Starting ===');
+    this.log(`Process started at: ${new Date().toISOString()}`);
+    this.log(`Process ID: ${process.pid}`);
+    this.log(`Node version: ${process.version}`);
+    this.log(`Working directory: ${process.cwd()}`);
+    this.log(`Script location: ${__filename}`);
+    this.log(`Arguments: ${JSON.stringify(process.argv)}`);
+    this.log(`Environment PATH: ${process.env.PATH}`);
+    this.log(`Log file: ${this.logFile}`);
+    
     this.server = new Server(
       {
         name: 'mcp-puppeteer',
@@ -31,11 +52,30 @@ class PuppeteerMCPServer {
     this.setupErrorHandling();
   }
 
+  private log(message: string) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}\n`;
+    fs.appendFileSync(this.logFile, logMessage);
+    console.error(logMessage.trim()); // Also log to stderr
+  }
+
   private setupErrorHandling(): void {
-    this.server.onerror = (error) => console.error('[MCP Error]', error);
+    this.server.onerror = (error) => {
+      this.log(`[MCP Error] ${error}`);
+      console.error('[MCP Error]', error);
+    };
     process.on('SIGINT', async () => {
+      this.log('Received SIGINT, cleaning up...');
       await this.cleanup();
       process.exit(0);
+    });
+    process.on('uncaughtException', (error) => {
+      this.log(`Uncaught Exception: ${error.stack}`);
+      console.error('Uncaught Exception:', error);
+    });
+    process.on('unhandledRejection', (reason, promise) => {
+      this.log(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     });
   }
 
@@ -46,7 +86,10 @@ class PuppeteerMCPServer {
   }
 
   private setupToolHandlers(): void {
+    this.log('Setting up tool handlers...');
+    
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      this.log('Received ListTools request');
       return {
         tools: [
           {
@@ -293,6 +336,7 @@ class PuppeteerMCPServer {
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
+      this.log(`Received CallTool request: ${name} with args: ${JSON.stringify(args)}`);
 
       try {
         switch (name) {
@@ -758,11 +802,26 @@ class PuppeteerMCPServer {
   }
 
   async run(): Promise<void> {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error('MCP Puppeteer server running on stdio');
+    this.log('Starting MCP server...');
+    try {
+      const transport = new StdioServerTransport();
+      this.log('Created StdioServerTransport');
+      
+      await this.server.connect(transport);
+      this.log('Successfully connected to transport');
+      
+      console.error('MCP Puppeteer server running on stdio');
+      this.log('Server is now running and ready to receive requests');
+    } catch (error) {
+      this.log(`Failed to start server: ${error}`);
+      throw error;
+    }
   }
 }
 
 const server = new PuppeteerMCPServer();
-server.run().catch(console.error);
+server.run().catch((error) => {
+  server['log'](`Fatal error: ${error.stack}`);
+  console.error(error);
+  process.exit(1);
+});
