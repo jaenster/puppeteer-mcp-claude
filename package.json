@@ -1,6 +1,6 @@
 {
   "name": "puppeteer-mcp-claude",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "packageManager": "pnpm@10.11.0",
   "main": "dist/index.js",
   "bin": {
