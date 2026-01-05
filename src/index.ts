@@ -18,6 +18,7 @@ class PuppeteerMCPServer {
   private pages: Map<string, Page> = new Map();
   private logFile: string;
   private currentViewport: any = null;
+  private pipeDisconnected: boolean = false;
 
   constructor() {
     // Set up logging
@@ -57,26 +58,65 @@ class PuppeteerMCPServer {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}\n`;
     fs.appendFileSync(this.logFile, logMessage);
-    console.error(logMessage.trim()); // Also log to stderr
+    // Only write to stderr if the pipe is still connected
+    // This prevents infinite EPIPE error loops when Claude disconnects
+    if (!this.pipeDisconnected) {
+      try {
+        console.error(logMessage.trim());
+      } catch {
+        // If writing to stderr fails, mark pipe as disconnected
+        this.pipeDisconnected = true;
+      }
+    }
   }
 
   private setupErrorHandling(): void {
     this.server.onerror = (error) => {
       this.log(`[MCP Error] ${error}`);
-      console.error('[MCP Error]', error);
     };
+
+    // Handle broken pipe errors on stdout/stderr - this happens when Claude disconnects
+    const handlePipeError = (stream: NodeJS.WriteStream, name: string) => {
+      stream.on('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED') {
+          this.pipeDisconnected = true;
+          this.log(`${name} pipe disconnected, shutting down gracefully`);
+          this.cleanup().then(() => process.exit(0));
+        }
+      });
+    };
+    handlePipeError(process.stdout, 'stdout');
+    handlePipeError(process.stderr, 'stderr');
+
     process.on('SIGINT', async () => {
       this.log('Received SIGINT, cleaning up...');
       await this.cleanup();
       process.exit(0);
     });
-    process.on('uncaughtException', (error) => {
+
+    process.on('uncaughtException', (error: NodeJS.ErrnoException) => {
+      // Handle EPIPE errors gracefully - this means the client disconnected
+      if (error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED') {
+        this.pipeDisconnected = true;
+        this.log('Client disconnected (EPIPE), shutting down gracefully');
+        this.cleanup().then(() => process.exit(0));
+        return;
+      }
       this.log(`Uncaught Exception: ${error.stack}`);
-      console.error('Uncaught Exception:', error);
     });
+
     process.on('unhandledRejection', (reason, promise) => {
+      // Check if it's an EPIPE-related rejection
+      if (reason instanceof Error) {
+        const errnoError = reason as NodeJS.ErrnoException;
+        if (errnoError.code === 'EPIPE' || errnoError.code === 'ERR_STREAM_DESTROYED') {
+          this.pipeDisconnected = true;
+          this.log('Client disconnected (EPIPE in promise), shutting down gracefully');
+          this.cleanup().then(() => process.exit(0));
+          return;
+        }
+      }
       this.log(`Unhandled Rejection at: ${promise}, reason: ${reason}`);
-      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
     });
   }
 
@@ -821,11 +861,10 @@ class PuppeteerMCPServer {
     try {
       const transport = new StdioServerTransport();
       this.log('Created StdioServerTransport');
-      
+
       await this.server.connect(transport);
       this.log('Successfully connected to transport');
-      
-      console.error('MCP Puppeteer server running on stdio');
+      this.log('MCP Puppeteer server running on stdio');
       this.log('Server is now running and ready to receive requests');
     } catch (error) {
       this.log(`Failed to start server: ${error}`);
@@ -836,7 +875,6 @@ class PuppeteerMCPServer {
 
 const server = new PuppeteerMCPServer();
 server.run().catch((error) => {
-  server['log'](`Fatal error: ${error.stack}`);
-  console.error(error);
+  server['log'](`Fatal error: ${error instanceof Error ? error.stack : error}`);
   process.exit(1);
 });
