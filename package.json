@@ -16,11 +16,15 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "test": "ts-node tests/e2e.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run --coverage",
+    "test:watch": "vitest",
+    "test:e2e": "ts-node tests/e2e.ts",
     "test:integration": "ts-node tests/claude-integration.ts",
     "test:claude": "ts-node tests/claude-simple-test.ts",
     "test:real": "ts-node tests/real-claude-test.ts",
     "test:console": "ts-node tests/console-claude-test.ts",
+    "test:all": "pnpm test:unit && pnpm test:e2e",
     "setup-mcp": "ts-node scripts/setup-mcp.ts setup",
     "remove-mcp": "ts-node scripts/setup-mcp.ts remove",
     "status-mcp": "ts-node scripts/setup-mcp.ts status",
@@ -51,5 +55,9 @@
     "puppeteer": "^24.12.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.16",
+    "vitest": "^4.0.16"
   }
 }
