@@ -17,6 +17,7 @@ class PuppeteerMCPServer {
   private browser: Browser | null = null;
   private pages: Map<string, Page> = new Map();
   private logFile: string;
+  private currentViewport: any = null;
 
   constructor() {
     // Set up logging
@@ -404,10 +405,16 @@ class PuppeteerMCPServer {
       await this.browser.close();
     }
 
+    // Store viewport for later use in new pages
+    this.currentViewport = viewport || null;
+
     let launchOptions: any = {
       headless,
       slowMo,
       args: [...browserArgs, '--no-sandbox', '--disable-setuid-sandbox'],
+      // Set defaultViewport to apply to all new pages
+      // null = disable device emulation, use actual window size
+      defaultViewport: viewport || null,
     };
 
     if (executablePath) {
@@ -443,6 +450,8 @@ class PuppeteerMCPServer {
     if (browserWSEndpoint) {
       this.browser = await puppeteer.connect({
         browserWSEndpoint,
+        // Disable default viewport when connecting to existing browser
+        defaultViewport: viewport || null,
       });
     } else {
       this.browser = await puppeteer.launch(launchOptions);
@@ -502,12 +511,18 @@ class PuppeteerMCPServer {
 
   private async handleNewPage(args: any) {
     const { pageId } = args;
-    
+
     if (!this.browser) {
       throw new Error('Browser not launched. Call puppeteer_launch first.');
     }
 
     const page = await this.browser.newPage();
+
+    // Apply stored viewport to new page (as additional safeguard)
+    if (this.currentViewport) {
+      await page.setViewport(this.currentViewport);
+    }
+
     this.pages.set(pageId, page);
 
     return {
