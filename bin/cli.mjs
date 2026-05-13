@@ -3,7 +3,7 @@
 import { execSync, spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir, platform } from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,17 +78,16 @@ function status() {
   process.exit(result.status ?? 0);
 }
 
-function serve() {
+async function serve() {
   if (!existsSync(SERVER_ENTRY)) {
     console.error(`Server build not found at ${SERVER_ENTRY}. Did "npm run build" complete?`);
     process.exit(1);
   }
-  const child = spawn('node', [SERVER_ENTRY], { stdio: 'inherit' });
-  child.on('exit', (code) => process.exit(code ?? 0));
-  child.on('error', (err) => {
-    console.error('Failed to start server:', err.message);
-    process.exit(1);
-  });
+  // Run the server in-process via dynamic import — NOT as a subprocess.
+  // The server installs SIGINT/SIGTERM handlers that close Chromium cleanly;
+  // a subprocess shim would swallow those signals and leak the browser when
+  // the host (Claude Code) stops the MCP process.
+  await import(pathToFileURL(SERVER_ENTRY).href);
 }
 
 function chrome(port, userDataDir) {
