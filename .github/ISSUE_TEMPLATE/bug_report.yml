@@ -1,0 +1,56 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what did you get instead?
+      placeholder: |
+        Steps:
+        1. ...
+        2. ...
+
+        Expected: ...
+        Actual: ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: puppeteer-mcp-claude version
+      description: Run `npm ls -g puppeteer-mcp-claude` or check `claude mcp get puppeteer-mcp-claude`.
+      placeholder: e.g. 0.2.2
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client + version
+      description: e.g. Claude Code 2.1.140, Claude Desktop, Cursor, Codex CLI.
+      placeholder: Claude Code 2.x
+
+  - type: input
+    id: os-node
+    attributes:
+      label: OS and Node version
+      description: Output of `uname -a` (or Windows version) + `node -v`.
+      placeholder: macOS 15.6, Node 24.x
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server logs
+      description: Paste the relevant section of `~/.puppeteer-mcp-logs/mcp-server-<timestamp>.log` (the most recent file).
+      render: text
+
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Sanity checklist
+      options:
+        - label: I tried `claude mcp list` and confirmed the server is registered with the expected command.
+        - label: I restarted my MCP client after installing/updating.

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/jaenster/puppeteer-mcp-claude/discussions
+    about: For "how do I…" questions or design discussion, prefer Discussions over issues.

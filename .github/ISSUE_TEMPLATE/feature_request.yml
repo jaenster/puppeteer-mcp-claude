@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an addition or change to the tool surface or behaviour.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the underlying need?
+      description: Describe the workflow you're trying to support, not just the API shape. Knowing the goal helps suggest the right fit.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape (optional)
+      description: New tool? New argument on an existing one? Sketch what you'd call and what you'd expect back.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Workarounds you've tried
+      description: e.g. driving it from `puppeteer_evaluate`, scripting it client-side, etc.

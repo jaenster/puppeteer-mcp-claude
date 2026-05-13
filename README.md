@@ -8,6 +8,12 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that gives Claude Code (and any other MCP-aware client) a real browser via Puppeteer — navigate pages, click and type, run JavaScript, capture screenshots, manage cookies, intercept requests.
 
+## Requirements
+
+- Node.js ≥ 18
+- An MCP-aware client (Claude Code, Claude Desktop, Cursor, Codex CLI, …)
+- Chromium is downloaded automatically by Puppeteer on first install (~170 MB)
+
 ## Install
 
 **macOS / Linux**
@@ -55,7 +61,12 @@ You don't have to call `puppeteer_launch` first — the browser auto-launches wi
 
 ### Response format
 
-Every tool returns its result in **[TOON](https://toonformat.dev) (Token-Oriented Object Notation)** for the text body — a compact, schema-aware JSON alternative that costs noticeably fewer tokens than indented JSON. The same data is also exposed as MCP `structuredContent` for clients that consume it programmatically.
+Every tool returns its result in two parallel forms:
+
+- `content[0].text` — **[TOON](https://toonformat.dev) (Token-Oriented Object Notation)**, a compact, schema-aware JSON alternative. Good for hosts that pipe the text body straight into the model's context.
+- `structuredContent` — the same data as a typed JSON object, for MCP clients that prefer machine-readable output.
+
+Which one your host uses is up to the host — both are MCP-spec-compliant. Typed clients that want the object without depending on `structuredContent` can `import { decode } from '@toon-format/toon'` and parse `content[0].text`.
 
 ### Connecting to an existing Chrome (login state, etc.)
 
