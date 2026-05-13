@@ -1,9 +1,7 @@
-import type { ServerState, MCPResponse, NavigateArgs } from '../types';
-import { getPage } from '../state';
+import type { ServerState, MCPResponse, NavigateArgs } from '../types.js';
+import { getPage } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Navigate to a URL
- */
 export async function handleNavigate(
   args: NavigateArgs,
   state: ServerState
@@ -13,7 +11,5 @@ export async function handleNavigate(
 
   await page.goto(url, { waitUntil });
 
-  return {
-    content: [{ type: 'text', text: `Navigated to ${url}` }],
-  };
+  return respond({ ok: true, action: 'navigated', pageId, url, waitUntil });
 }

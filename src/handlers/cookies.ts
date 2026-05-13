@@ -4,12 +4,10 @@ import type {
   SetCookiesArgs,
   GetCookiesArgs,
   DeleteCookiesArgs,
-} from '../types';
-import { getPage } from '../state';
+} from '../types.js';
+import { getPage } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Set cookies for a page
- */
 export async function handleSetCookies(
   args: SetCookiesArgs,
   state: ServerState
@@ -19,19 +17,9 @@ export async function handleSetCookies(
 
   await page.setCookie(...cookies);
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Set ${cookies.length} cookie(s) for page ${pageId}`,
-      },
-    ],
-  };
+  return respond({ ok: true, action: 'cookies_set', pageId, count: cookies.length });
 }
 
-/**
- * Get cookies from a page
- */
 export async function handleGetCookies(
   args: GetCookiesArgs,
   state: ServerState
@@ -41,19 +29,15 @@ export async function handleGetCookies(
 
   const cookies = urls ? await page.cookies(...urls) : await page.cookies();
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Retrieved cookies: ${JSON.stringify(cookies, null, 2)}`,
-      },
-    ],
-  };
+  return respond({
+    ok: true,
+    action: 'cookies_retrieved',
+    pageId,
+    count: cookies.length,
+    cookies: cookies as any,
+  });
 }
 
-/**
- * Delete cookies from a page
- */
 export async function handleDeleteCookies(
   args: DeleteCookiesArgs,
   state: ServerState
@@ -63,12 +47,5 @@ export async function handleDeleteCookies(
 
   await page.deleteCookie(...cookies);
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: `Deleted ${cookies.length} cookie(s) from page ${pageId}`,
-      },
-    ],
-  };
+  return respond({ ok: true, action: 'cookies_deleted', pageId, count: cookies.length });
 }

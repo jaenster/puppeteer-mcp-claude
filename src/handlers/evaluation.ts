@@ -1,9 +1,7 @@
-import type { ServerState, MCPResponse, EvaluateArgs, WaitForSelectorArgs } from '../types';
-import { getPage } from '../state';
+import type { ServerState, MCPResponse, EvaluateArgs, WaitForSelectorArgs } from '../types.js';
+import { getPage } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Execute JavaScript in the page context
- */
 export async function handleEvaluate(
   args: EvaluateArgs,
   state: ServerState
@@ -13,14 +11,9 @@ export async function handleEvaluate(
 
   const result = await page.evaluate(script);
 
-  return {
-    content: [{ type: 'text', text: `Script result: ${JSON.stringify(result)}` }],
-  };
+  return respond({ ok: true, action: 'evaluated', pageId, result: result as any });
 }
 
-/**
- * Wait for a selector to appear
- */
 export async function handleWaitForSelector(
   args: WaitForSelectorArgs,
   state: ServerState
@@ -30,7 +23,5 @@ export async function handleWaitForSelector(
 
   await page.waitForSelector(selector, { timeout });
 
-  return {
-    content: [{ type: 'text', text: `Selector ${selector} appeared` }],
-  };
+  return respond({ ok: true, action: 'selector_appeared', pageId, selector });
 }

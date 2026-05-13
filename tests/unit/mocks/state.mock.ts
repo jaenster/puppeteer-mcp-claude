@@ -1,7 +1,7 @@
-import { vi } from 'vitest';
+import { mock } from 'node:test';
+import type { Browser, Page } from 'puppeteer';
 import type { ServerState } from '../../../src/types';
-import type { Page, Browser } from 'puppeteer';
-import { createMockBrowser, createMockPage } from './puppeteer.mock';
+import { createMockBrowser } from './puppeteer.mock';
 
 export interface MockStateOptions {
   browser?: Browser | null;
@@ -9,34 +9,28 @@ export interface MockStateOptions {
   pipeDisconnected?: boolean;
 }
 
-/**
- * Create a mock server state for testing
- */
 export function createMockState(options: MockStateOptions = {}): ServerState {
   return {
     browser: options.browser ?? null,
     pages: options.pages ?? new Map(),
     currentViewport: null,
+    currentUserAgent: null,
+    currentStealth: false,
     pipeDisconnected: options.pipeDisconnected ?? false,
+    browserLaunching: null,
+    pageCreations: new Map(),
   };
 }
 
-/**
- * Create a mock state with a browser and optionally pages
- */
 export function createMockStateWithBrowser(
   pageEntries: Array<[string, Page]> = []
 ): ServerState {
-  const state = createMockState({
+  return createMockState({
     browser: createMockBrowser(),
     pages: new Map(pageEntries),
   });
-  return state;
 }
 
-/**
- * Create a mock log function
- */
 export function createMockLog() {
-  return vi.fn();
+  return mock.fn((_msg: string) => undefined);
 }

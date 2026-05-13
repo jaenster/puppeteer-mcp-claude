@@ -1,91 +1,91 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, beforeEach, afterEach, mock } from 'node:test';
+import assert from 'node:assert/strict';
+import { setPuppeteer, resetPuppeteer } from '../../../src/puppeteer';
 import { handleLaunch } from '../../../src/handlers/launch';
 import { createMockBrowser, createMockPage } from '../mocks/puppeteer.mock';
 import { createMockState, createMockLog } from '../mocks/state.mock';
 import type { ServerState } from '../../../src/types';
-
-// Mock puppeteer module
-vi.mock('puppeteer', () => ({
-  default: {
-    launch: vi.fn(),
-    connect: vi.fn(),
-  },
-}));
-
-import puppeteer from 'puppeteer';
+import {
+  assertCalled,
+  assertCalledWith,
+  assertNotCalled,
+  arrayContaining,
+  stringContaining,
+} from '../_helpers';
 
 describe('handleLaunch', () => {
   let state: ServerState;
   let mockLog: ReturnType<typeof createMockLog>;
   let mockBrowser: ReturnType<typeof createMockBrowser>;
+  let fakePuppeteer: {
+    launch: ReturnType<typeof mock.fn>;
+    connect: ReturnType<typeof mock.fn>;
+  };
 
   beforeEach(() => {
     state = createMockState();
     mockLog = createMockLog();
     mockBrowser = createMockBrowser();
-    vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
-    vi.mocked(puppeteer.connect).mockResolvedValue(mockBrowser as any);
+    fakePuppeteer = {
+      launch: mock.fn(async () => mockBrowser),
+      connect: mock.fn(async () => mockBrowser),
+    };
+    setPuppeteer(fakePuppeteer as any);
+  });
+
+  afterEach(() => {
+    resetPuppeteer();
   });
 
   describe('basic launch', () => {
     it('should launch browser with default options', async () => {
       const result = await handleLaunch({}, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          headless: true,
-          args: expect.arrayContaining(['--no-sandbox', '--disable-setuid-sandbox']),
-        })
-      );
-      expect(state.browser).toBe(mockBrowser);
-      expect(result.content[0].text).toBe('Browser launched successfully');
+      assertCalledWith(fakePuppeteer.launch as any, {
+        headless: true,
+        args: arrayContaining(['--no-sandbox', '--disable-setuid-sandbox']),
+      });
+      assert.equal(state.browser, mockBrowser);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.action, 'browser_launched');
+      assert.equal(sc.ok, true);
     });
 
     it('should launch in non-headless mode', async () => {
       await handleLaunch({ headless: false }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ headless: false })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { headless: false });
     });
 
     it('should pass custom browser args', async () => {
       await handleLaunch({ args: ['--disable-gpu', '--no-zygote'] }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining([
-            '--disable-gpu',
-            '--no-zygote',
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-          ]),
-        })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, {
+        args: arrayContaining([
+          '--disable-gpu',
+          '--no-zygote',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+        ]),
+      });
     });
 
     it('should use custom executablePath', async () => {
       await handleLaunch({ executablePath: '/path/to/chrome' }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ executablePath: '/path/to/chrome' })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { executablePath: '/path/to/chrome' });
     });
 
     it('should use userDataDir', async () => {
       await handleLaunch({ userDataDir: '/path/to/profile' }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ userDataDir: '/path/to/profile' })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { userDataDir: '/path/to/profile' });
     });
 
     it('should set slowMo delay', async () => {
       await handleLaunch({ slowMo: 100 }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ slowMo: 100 })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { slowMo: 100 });
     });
   });
 
@@ -96,8 +96,8 @@ describe('handleLaunch', () => {
 
       await handleLaunch({}, state, mockLog);
 
-      expect(oldBrowser.close).toHaveBeenCalled();
-      expect(state.browser).toBe(mockBrowser);
+      assertCalled(oldBrowser.close as any);
+      assert.equal(state.browser, mockBrowser);
     });
   });
 
@@ -109,20 +109,24 @@ describe('handleLaunch', () => {
         mockLog
       );
 
-      expect(puppeteer.connect).toHaveBeenCalledWith(
-        expect.objectContaining({ browserWSEndpoint: 'ws://localhost:9222' })
-      );
-      expect(puppeteer.launch).not.toHaveBeenCalled();
-      expect(result.content[0].text).toBe('Connected to existing browser successfully');
+      assertCalledWith(fakePuppeteer.connect as any, {
+        browserWSEndpoint: 'ws://localhost:9222',
+      });
+      assertNotCalled(fakePuppeteer.launch as any);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.action, 'browser_connected');
+      assert.equal(sc.ok, true);
     });
 
     it('should pass viewport to connect options', async () => {
       const viewport = { width: 1920, height: 1080 };
-      await handleLaunch({ browserWSEndpoint: 'ws://localhost:9222', viewport }, state, mockLog);
-
-      expect(puppeteer.connect).toHaveBeenCalledWith(
-        expect.objectContaining({ defaultViewport: viewport })
+      await handleLaunch(
+        { browserWSEndpoint: 'ws://localhost:9222', viewport },
+        state,
+        mockLog
       );
+
+      assertCalledWith(fakePuppeteer.connect as any, { defaultViewport: viewport });
     });
   });
 
@@ -130,28 +134,26 @@ describe('handleLaunch', () => {
     it('should set viewport on default page', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       const viewport = { width: 1920, height: 1080 };
       await handleLaunch({ viewport }, state, mockLog);
 
-      expect(mockPage.setViewport).toHaveBeenCalledWith(viewport);
-      expect(state.currentViewport).toEqual(viewport);
+      assertCalledWith(mockPage.setViewport as any, viewport);
+      assert.deepEqual(state.currentViewport, viewport);
     });
 
     it('should store viewport for new pages', async () => {
       const viewport = { width: 800, height: 600 };
       await handleLaunch({ viewport }, state, mockLog);
 
-      expect(state.currentViewport).toEqual(viewport);
+      assert.deepEqual(state.currentViewport, viewport);
     });
 
     it('should use null defaultViewport when none specified', async () => {
       await handleLaunch({}, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ defaultViewport: null })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { defaultViewport: null });
     });
   });
 
@@ -159,11 +161,11 @@ describe('handleLaunch', () => {
     it('should set custom user agent', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       await handleLaunch({ userAgent: 'Custom UA' }, state, mockLog);
 
-      expect(mockPage.setUserAgent).toHaveBeenCalledWith('Custom UA');
+      assertCalledWith(mockPage.setUserAgent as any, 'Custom UA');
     });
   });
 
@@ -171,46 +173,42 @@ describe('handleLaunch', () => {
     it('should add stealth args when enabled', async () => {
       await handleLaunch({ stealth: true }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining([
-            '--disable-blink-features=AutomationControlled',
-            '--disable-extensions',
-          ]),
-        })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, {
+        args: arrayContaining([
+          '--disable-blink-features=AutomationControlled',
+          '--disable-extensions',
+        ]),
+      });
     });
 
     it('should set stealth user agent', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       await handleLaunch({ stealth: true }, state, mockLog);
 
-      expect(mockPage.setUserAgent).toHaveBeenCalledWith(
-        expect.stringContaining('Mozilla/5.0')
-      );
+      assertCalledWith(mockPage.setUserAgent as any, stringContaining('Mozilla/5.0'));
     });
 
     it('should inject anti-detection scripts', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       await handleLaunch({ stealth: true }, state, mockLog);
 
-      expect(mockPage.evaluateOnNewDocument).toHaveBeenCalled();
+      assertCalled(mockPage.evaluateOnNewDocument as any);
     });
 
     it('should prefer custom userAgent over stealth default', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       await handleLaunch({ stealth: true, userAgent: 'Custom UA' }, state, mockLog);
 
-      expect(mockPage.setUserAgent).toHaveBeenCalledWith('Custom UA');
+      assertCalledWith(mockPage.setUserAgent as any, 'Custom UA');
     });
   });
 
@@ -218,34 +216,36 @@ describe('handleLaunch', () => {
     it('should add proxy server arg', async () => {
       await handleLaunch({ proxy: { server: 'http://proxy:8080' } }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining(['--proxy-server=http://proxy:8080']),
-        })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, {
+        args: arrayContaining(['--proxy-server=http://proxy:8080']),
+      });
     });
 
     it('should not add proxy arg if server not provided', async () => {
       await handleLaunch({ proxy: {} as any }, state, mockLog);
 
-      const launchCall = vi.mocked(puppeteer.launch).mock.calls[0][0];
-      expect(launchCall?.args).not.toContain(expect.stringContaining('--proxy-server'));
+      const launchCall = (fakePuppeteer.launch as any).mock.calls[0].arguments[0];
+      const args: string[] = launchCall?.args ?? [];
+      assert.ok(!args.some((arg: string) => arg.includes('--proxy-server')));
     });
   });
 
   describe('error handling', () => {
     it('should propagate launch errors', async () => {
-      vi.mocked(puppeteer.launch).mockRejectedValue(new Error('Launch failed'));
+      fakePuppeteer.launch.mock.mockImplementation((() =>
+        Promise.reject(new Error('Launch failed'))) as any);
 
-      await expect(handleLaunch({}, state, mockLog)).rejects.toThrow('Launch failed');
+      await assert.rejects(handleLaunch({}, state, mockLog), { message: 'Launch failed' });
     });
 
     it('should propagate connect errors', async () => {
-      vi.mocked(puppeteer.connect).mockRejectedValue(new Error('Connection refused'));
+      fakePuppeteer.connect.mock.mockImplementation((() =>
+        Promise.reject(new Error('Connection refused'))) as any);
 
-      await expect(
-        handleLaunch({ browserWSEndpoint: 'ws://invalid' }, state, mockLog)
-      ).rejects.toThrow('Connection refused');
+      await assert.rejects(
+        handleLaunch({ browserWSEndpoint: 'ws://invalid' }, state, mockLog),
+        { message: 'Connection refused' }
+      );
     });
   });
 
@@ -253,7 +253,7 @@ describe('handleLaunch', () => {
     it('should handle combined options (stealth + proxy + viewport)', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       await handleLaunch(
         {
@@ -265,32 +265,28 @@ describe('handleLaunch', () => {
         mockLog
       );
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining([
-            '--proxy-server=http://proxy:8080',
-            '--disable-blink-features=AutomationControlled',
-          ]),
-        })
-      );
-      expect(mockPage.setViewport).toHaveBeenCalledWith({ width: 1920, height: 1080 });
-      expect(mockPage.evaluateOnNewDocument).toHaveBeenCalled();
+      assertCalledWith(fakePuppeteer.launch as any, {
+        args: arrayContaining([
+          '--proxy-server=http://proxy:8080',
+          '--disable-blink-features=AutomationControlled',
+        ]),
+      });
+      assertCalledWith(mockPage.setViewport as any, { width: 1920, height: 1080 });
+      assertCalled(mockPage.evaluateOnNewDocument as any);
     });
 
     it('should handle empty browser args array', async () => {
       await handleLaunch({ args: [] }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      });
     });
 
     it('should handle viewport with all properties', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       const viewport = {
         width: 375,
@@ -303,60 +299,62 @@ describe('handleLaunch', () => {
 
       await handleLaunch({ viewport }, state, mockLog);
 
-      expect(mockPage.setViewport).toHaveBeenCalledWith(viewport);
-      expect(state.currentViewport).toEqual(viewport);
+      assertCalledWith(mockPage.setViewport as any, viewport);
+      assert.deepEqual(state.currentViewport, viewport);
     });
 
     it('should handle zero slowMo', async () => {
       await handleLaunch({ slowMo: 0 }, state, mockLog);
 
-      expect(puppeteer.launch).toHaveBeenCalledWith(
-        expect.objectContaining({ slowMo: 0 })
-      );
+      assertCalledWith(fakePuppeteer.launch as any, { slowMo: 0 });
     });
 
     it('should handle browser with no default pages', async () => {
       mockBrowser = createMockBrowser({ pages: [] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       // Should not throw even with stealth/viewport when no pages exist
-      await handleLaunch({ stealth: true, viewport: { width: 800, height: 600 } }, state, mockLog);
+      await handleLaunch(
+        { stealth: true, viewport: { width: 800, height: 600 } },
+        state,
+        mockLog
+      );
 
-      expect(state.browser).toBe(mockBrowser);
+      assert.equal(state.browser, mockBrowser);
     });
 
     it('should handle proxy with empty server string', async () => {
       await handleLaunch({ proxy: { server: '' } }, state, mockLog);
 
-      const launchCall = vi.mocked(puppeteer.launch).mock.calls[0][0];
+      const launchCall = (fakePuppeteer.launch as any).mock.calls[0].arguments[0];
+      const args: string[] = launchCall?.args ?? [];
       // Empty server should not add proxy arg
-      expect(launchCall?.args?.some((arg: string) => arg.includes('--proxy-server'))).toBe(false);
+      assert.equal(args.some((arg: string) => arg.includes('--proxy-server')), false);
     });
 
     it('should handle multiple sequential launches', async () => {
       const browser1 = createMockBrowser();
       const browser2 = createMockBrowser();
-      vi.mocked(puppeteer.launch)
-        .mockResolvedValueOnce(browser1 as any)
-        .mockResolvedValueOnce(browser2 as any);
+      fakePuppeteer.launch.mock.mockImplementationOnce((async () => browser1) as any, 0);
+      fakePuppeteer.launch.mock.mockImplementationOnce((async () => browser2) as any, 1);
 
       await handleLaunch({}, state, mockLog);
-      expect(state.browser).toBe(browser1);
+      assert.equal(state.browser, browser1);
 
       await handleLaunch({}, state, mockLog);
-      expect(browser1.close).toHaveBeenCalled();
-      expect(state.browser).toBe(browser2);
+      assertCalled(browser1.close as any);
+      assert.equal(state.browser, browser2);
     });
 
     it('should handle userAgent with special characters', async () => {
       const mockPage = createMockPage();
       mockBrowser = createMockBrowser({ pages: [mockPage] });
-      vi.mocked(puppeteer.launch).mockResolvedValue(mockBrowser as any);
+      fakePuppeteer.launch.mock.mockImplementation((async () => mockBrowser) as any);
 
       const userAgent = 'Mozilla/5.0 (X11; Linux x86_64) "Special & <Characters>"';
       await handleLaunch({ userAgent }, state, mockLog);
 
-      expect(mockPage.setUserAgent).toHaveBeenCalledWith(userAgent);
+      assertCalledWith(mockPage.setUserAgent as any, userAgent);
     });
   });
 });

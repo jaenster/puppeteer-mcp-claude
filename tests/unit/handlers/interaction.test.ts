@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { handleClick, handleType, handleGetText } from '../../../src/handlers/interaction';
 import { createMockPage } from '../mocks/puppeteer.mock';
 import { createMockStateWithBrowser } from '../mocks/state.mock';
+import { assertCalledWith } from '../_helpers';
 
 describe('handleClick', () => {
   it('should click element by selector', async () => {
@@ -10,25 +12,30 @@ describe('handleClick', () => {
 
     const result = await handleClick({ pageId: 'page1', selector: '#button' }, state);
 
-    expect(mockPage.click).toHaveBeenCalledWith('#button');
-    expect(result.content[0].text).toBe('Clicked on #button');
+    assertCalledWith(mockPage.click as any, '#button');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'clicked');
+    assert.equal(sc.selector, '#button');
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleClick({ pageId: 'unknown', selector: '#button' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleClick({ pageId: 'unknown', selector: '#button' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should propagate click errors', async () => {
     const mockPage = createMockPage({ clickError: new Error('Element not found') });
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleClick({ pageId: 'page1', selector: '#nonexistent' }, state)
-    ).rejects.toThrow('Element not found');
+    await assert.rejects(
+      handleClick({ pageId: 'page1', selector: '#nonexistent' }, state),
+      { message: 'Element not found' }
+    );
   });
 
   it('should handle complex selectors', async () => {
@@ -40,7 +47,7 @@ describe('handleClick', () => {
       state
     );
 
-    expect(mockPage.click).toHaveBeenCalledWith('div.container > button[data-action="submit"]');
+    assertCalledWith(mockPage.click as any, 'div.container > button[data-action="submit"]');
   });
 });
 
@@ -54,25 +61,31 @@ describe('handleType', () => {
       state
     );
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', 'Hello World');
-    expect(result.content[0].text).toBe('Typed "Hello World" into #input');
+    assertCalledWith(mockPage.type as any, '#input', 'Hello World');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'typed');
+    assert.equal(sc.text, 'Hello World');
+    assert.equal(sc.selector, '#input');
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleType({ pageId: 'unknown', selector: '#input', text: 'test' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleType({ pageId: 'unknown', selector: '#input', text: 'test' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should propagate type errors', async () => {
     const mockPage = createMockPage({ typeError: new Error('Cannot type into element') });
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleType({ pageId: 'page1', selector: '#readonly', text: 'test' }, state)
-    ).rejects.toThrow('Cannot type into element');
+    await assert.rejects(
+      handleType({ pageId: 'page1', selector: '#readonly', text: 'test' }, state),
+      { message: 'Cannot type into element' }
+    );
   });
 
   it('should handle empty text', async () => {
@@ -81,7 +94,7 @@ describe('handleType', () => {
 
     await handleType({ pageId: 'page1', selector: '#input', text: '' }, state);
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', '');
+    assertCalledWith(mockPage.type as any, '#input', '');
   });
 
   it('should handle special characters', async () => {
@@ -91,7 +104,7 @@ describe('handleType', () => {
 
     await handleType({ pageId: 'page1', selector: '#input', text: specialText }, state);
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', specialText);
+    assertCalledWith(mockPage.type as any, '#input', specialText);
   });
 });
 
@@ -102,25 +115,31 @@ describe('handleGetText', () => {
 
     const result = await handleGetText({ pageId: 'page1', selector: '#content' }, state);
 
-    expect(mockPage.$).toHaveBeenCalledWith('#content');
-    expect(result.content[0].text).toBe('Text from #content: Hello World');
+    assertCalledWith(mockPage.$ as any, '#content');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'text_extracted');
+    assert.equal(sc.text, 'Hello World');
+    assert.equal(sc.selector, '#content');
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleGetText({ pageId: 'unknown', selector: '#content' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleGetText({ pageId: 'unknown', selector: '#content' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should throw when element is not found', async () => {
     const mockPage = createMockPage({ elementExists: false });
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleGetText({ pageId: 'page1', selector: '#nonexistent' }, state)
-    ).rejects.toThrow('Element #nonexistent not found');
+    await assert.rejects(
+      handleGetText({ pageId: 'page1', selector: '#nonexistent' }, state),
+      { message: 'Element #nonexistent not found' }
+    );
   });
 
   it('should handle null text content', async () => {
@@ -129,7 +148,10 @@ describe('handleGetText', () => {
 
     const result = await handleGetText({ pageId: 'page1', selector: '#empty' }, state);
 
-    expect(result.content[0].text).toBe('Text from #empty: null');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'text_extracted');
+    assert.equal(sc.text, null);
+    assert.equal(sc.selector, '#empty');
   });
 
   it('should handle whitespace-only content', async () => {
@@ -138,7 +160,10 @@ describe('handleGetText', () => {
 
     const result = await handleGetText({ pageId: 'page1', selector: '#whitespace' }, state);
 
-    expect(result.content[0].text).toBe('Text from #whitespace:    \n\t  ');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'text_extracted');
+    assert.equal(sc.text, '   \n\t  ');
+    assert.equal(sc.selector, '#whitespace');
   });
 
   describe('edge cases', () => {
@@ -149,7 +174,8 @@ describe('handleGetText', () => {
 
       const result = await handleGetText({ pageId: 'page1', selector: '#long' }, state);
 
-      expect(result.content[0].text).toContain(longText);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.text, longText);
     });
 
     it('should handle HTML entities in text', async () => {
@@ -158,7 +184,8 @@ describe('handleGetText', () => {
 
       const result = await handleGetText({ pageId: 'page1', selector: '#entities' }, state);
 
-      expect(result.content[0].text).toContain('&lt;script&gt;');
+      const sc = result.structuredContent as any;
+      assert.equal(sc.text, '&lt;script&gt;alert("xss")&lt;/script&gt;');
     });
 
     it('should handle unicode in text content', async () => {
@@ -167,7 +194,8 @@ describe('handleGetText', () => {
 
       const result = await handleGetText({ pageId: 'page1', selector: '#unicode' }, state);
 
-      expect(result.content[0].text).toContain('日本語テキスト 🎉 émojis');
+      const sc = result.structuredContent as any;
+      assert.equal(sc.text, '日本語テキスト 🎉 émojis');
     });
   });
 });
@@ -179,7 +207,7 @@ describe('handleClick edge cases', () => {
 
     await handleClick({ pageId: 'page1', selector: '[data-value="test\'s"]' }, state);
 
-    expect(mockPage.click).toHaveBeenCalledWith('[data-value="test\'s"]');
+    assertCalledWith(mockPage.click as any, '[data-value="test\'s"]');
   });
 
   it('should handle :nth-child selectors', async () => {
@@ -188,7 +216,7 @@ describe('handleClick edge cases', () => {
 
     await handleClick({ pageId: 'page1', selector: 'ul > li:nth-child(3)' }, state);
 
-    expect(mockPage.click).toHaveBeenCalledWith('ul > li:nth-child(3)');
+    assertCalledWith(mockPage.click as any, 'ul > li:nth-child(3)');
   });
 
   it('should handle XPath-like attribute selectors', async () => {
@@ -197,7 +225,7 @@ describe('handleClick edge cases', () => {
 
     await handleClick({ pageId: 'page1', selector: '[aria-label*="Submit"]' }, state);
 
-    expect(mockPage.click).toHaveBeenCalledWith('[aria-label*="Submit"]');
+    assertCalledWith(mockPage.click as any, '[aria-label*="Submit"]');
   });
 });
 
@@ -208,7 +236,7 @@ describe('handleType edge cases', () => {
 
     await handleType({ pageId: 'page1', selector: '#input', text: '日本語入力 🎉' }, state);
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', '日本語入力 🎉');
+    assertCalledWith(mockPage.type as any, '#input', '日本語入力 🎉');
   });
 
   it('should handle very long text input', async () => {
@@ -218,7 +246,7 @@ describe('handleType edge cases', () => {
 
     await handleType({ pageId: 'page1', selector: '#input', text: longText }, state);
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', longText);
+    assertCalledWith(mockPage.type as any, '#input', longText);
   });
 
   it('should handle text with HTML-like content', async () => {
@@ -230,7 +258,7 @@ describe('handleType edge cases', () => {
       state
     );
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', '<script>alert("xss")</script>');
+    assertCalledWith(mockPage.type as any, '#input', '<script>alert("xss")</script>');
   });
 
   it('should handle text with SQL-like content', async () => {
@@ -242,7 +270,7 @@ describe('handleType edge cases', () => {
       state
     );
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', "'; DROP TABLE users; --");
+    assertCalledWith(mockPage.type as any, '#input', "'; DROP TABLE users; --");
   });
 
   it('should handle text with escape sequences', async () => {
@@ -254,6 +282,6 @@ describe('handleType edge cases', () => {
       state
     );
 
-    expect(mockPage.type).toHaveBeenCalledWith('#input', 'line1\\nline2\\ttab');
+    assertCalledWith(mockPage.type as any, '#input', 'line1\\nline2\\ttab');
   });
 });

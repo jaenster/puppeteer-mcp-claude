@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { handleNewPage, handleClosePage } from '../../../src/handlers/page';
 import { createMockPage, createMockBrowser } from '../mocks/puppeteer.mock';
 import { createMockState, createMockStateWithBrowser } from '../mocks/state.mock';
-import type { ServerState } from '../../../src/types';
+import { assertCalled, assertCalledWith, assertNotCalled, rejectWith } from '../_helpers';
 
 describe('handleNewPage', () => {
   it('should create a new page with the given pageId', async () => {
@@ -12,9 +13,12 @@ describe('handleNewPage', () => {
 
     const result = await handleNewPage({ pageId: 'test-page' }, state);
 
-    expect(mockBrowser.newPage).toHaveBeenCalled();
-    expect(state.pages.get('test-page')).toBe(mockPage);
-    expect(result.content[0].text).toBe('Page test-page created successfully');
+    assertCalled(mockBrowser.newPage as any);
+    assert.equal(state.pages.get('test-page'), mockPage);
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'page_created');
+    assert.equal(sc.pageId, 'test-page');
+    assert.equal(sc.ok, true);
   });
 
   it('should apply stored viewport to new page', async () => {
@@ -25,7 +29,7 @@ describe('handleNewPage', () => {
 
     await handleNewPage({ pageId: 'test-page' }, state);
 
-    expect(mockPage.setViewport).toHaveBeenCalledWith({ width: 1920, height: 1080 });
+    assertCalledWith(mockPage.setViewport as any, { width: 1920, height: 1080 });
   });
 
   it('should not set viewport if none is stored', async () => {
@@ -36,18 +40,19 @@ describe('handleNewPage', () => {
 
     await handleNewPage({ pageId: 'test-page' }, state);
 
-    expect(mockPage.setViewport).not.toHaveBeenCalled();
+    assertNotCalled(mockPage.setViewport as any);
   });
 
   it('should throw if browser is not launched', async () => {
     const state = createMockState({ browser: null });
 
-    await expect(handleNewPage({ pageId: 'test-page' }, state)).rejects.toThrow(
-      'Browser not launched. Call puppeteer_launch first.'
+    await assert.rejects(
+      handleNewPage({ pageId: 'test-page' }, state),
+      { message: 'Browser not launched. Call puppeteer_launch first.' }
     );
   });
 
-  it('should overwrite existing page with same pageId', async () => {
+  it('rejects when pageId already exists (prevents silent tab leak)', async () => {
     const existingPage = createMockPage();
     const newPage = createMockPage();
     const mockBrowser = createMockBrowser({ newPageMock: newPage });
@@ -56,9 +61,11 @@ describe('handleNewPage', () => {
       pages: new Map([['test-page', existingPage]]),
     });
 
-    await handleNewPage({ pageId: 'test-page' }, state);
-
-    expect(state.pages.get('test-page')).toBe(newPage);
+    await assert.rejects(handleNewPage({ pageId: 'test-page' }, state), {
+      message: /already exists/,
+    });
+    // existing page reference is untouched
+    assert.equal(state.pages.get('test-page'), existingPage);
   });
 
   it('should handle browser.newPage failure', async () => {
@@ -67,8 +74,9 @@ describe('handleNewPage', () => {
     });
     const state = createMockState({ browser: mockBrowser });
 
-    await expect(handleNewPage({ pageId: 'test-page' }, state)).rejects.toThrow(
-      'Failed to create page'
+    await assert.rejects(
+      handleNewPage({ pageId: 'test-page' }, state),
+      { message: 'Failed to create page' }
     );
   });
 });
@@ -80,26 +88,31 @@ describe('handleClosePage', () => {
 
     const result = await handleClosePage({ pageId: 'test-page' }, state);
 
-    expect(mockPage.close).toHaveBeenCalled();
-    expect(state.pages.has('test-page')).toBe(false);
-    expect(result.content[0].text).toBe('Page test-page closed');
+    assertCalled(mockPage.close as any);
+    assert.equal(state.pages.has('test-page'), false);
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'page_closed');
+    assert.equal(sc.pageId, 'test-page');
+    assert.equal(sc.ok, true);
   });
 
   it('should throw if pageId is not found', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(handleClosePage({ pageId: 'unknown' }, state)).rejects.toThrow(
-      'Page unknown not found'
+    await assert.rejects(
+      handleClosePage({ pageId: 'unknown' }, state),
+      { message: 'Page unknown not found' }
     );
   });
 
   it('should handle page.close failure', async () => {
     const mockPage = createMockPage();
-    (mockPage.close as any).mockRejectedValue(new Error('Close failed'));
+    rejectWith(mockPage.close as any, new Error('Close failed'));
     const state = createMockStateWithBrowser([['test-page', mockPage]]);
 
-    await expect(handleClosePage({ pageId: 'test-page' }, state)).rejects.toThrow(
-      'Close failed'
+    await assert.rejects(
+      handleClosePage({ pageId: 'test-page' }, state),
+      { message: 'Close failed' }
     );
   });
 });
@@ -113,8 +126,10 @@ describe('page handler edge cases', () => {
 
       const result = await handleNewPage({ pageId: 'page-with_special.chars:123' }, state);
 
-      expect(state.pages.get('page-with_special.chars:123')).toBe(mockPage);
-      expect(result.content[0].text).toBe('Page page-with_special.chars:123 created successfully');
+      assert.equal(state.pages.get('page-with_special.chars:123'), mockPage);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.action, 'page_created');
+      assert.equal(sc.pageId, 'page-with_special.chars:123');
     });
 
     it('should handle pageId with unicode', async () => {
@@ -124,7 +139,7 @@ describe('page handler edge cases', () => {
 
       await handleNewPage({ pageId: 'ページ-日本語' }, state);
 
-      expect(state.pages.get('ページ-日本語')).toBe(mockPage);
+      assert.equal(state.pages.get('ページ-日本語'), mockPage);
     });
 
     it('should handle very long pageId', async () => {
@@ -135,7 +150,7 @@ describe('page handler edge cases', () => {
 
       await handleNewPage({ pageId: longId }, state);
 
-      expect(state.pages.get(longId)).toBe(mockPage);
+      assert.equal(state.pages.get(longId), mockPage);
     });
 
     it('should handle creating many pages', async () => {
@@ -146,7 +161,7 @@ describe('page handler edge cases', () => {
         await handleNewPage({ pageId: `page${i}` }, state);
       }
 
-      expect(state.pages.size).toBe(20);
+      assert.equal(state.pages.size, 20);
     });
 
     it('should handle empty string pageId', async () => {
@@ -156,7 +171,7 @@ describe('page handler edge cases', () => {
 
       await handleNewPage({ pageId: '' }, state);
 
-      expect(state.pages.get('')).toBe(mockPage);
+      assert.equal(state.pages.get(''), mockPage);
     });
   });
 
@@ -167,7 +182,7 @@ describe('page handler edge cases', () => {
 
       await handleClosePage({ pageId: 'last-page' }, state);
 
-      expect(state.pages.size).toBe(0);
+      assert.equal(state.pages.size, 0);
     });
 
     it('should handle closing one of many pages', async () => {
@@ -180,10 +195,10 @@ describe('page handler edge cases', () => {
 
       await handleClosePage({ pageId: 'page2' }, state);
 
-      expect(state.pages.size).toBe(2);
-      expect(state.pages.has('page1')).toBe(true);
-      expect(state.pages.has('page2')).toBe(false);
-      expect(state.pages.has('page3')).toBe(true);
+      assert.equal(state.pages.size, 2);
+      assert.equal(state.pages.has('page1'), true);
+      assert.equal(state.pages.has('page2'), false);
+      assert.equal(state.pages.has('page3'), true);
     });
 
     it('should handle pageId with spaces', async () => {
@@ -192,8 +207,10 @@ describe('page handler edge cases', () => {
 
       const result = await handleClosePage({ pageId: 'page with spaces' }, state);
 
-      expect(result.content[0].text).toBe('Page page with spaces closed');
-      expect(state.pages.has('page with spaces')).toBe(false);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.action, 'page_closed');
+      assert.equal(sc.pageId, 'page with spaces');
+      assert.equal(state.pages.has('page with spaces'), false);
     });
   });
 });

@@ -1,9 +1,7 @@
-import type { ServerState, MCPResponse, SelectorArgs, TypeArgs } from '../types';
-import { getPage } from '../state';
+import type { ServerState, MCPResponse, SelectorArgs, TypeArgs } from '../types.js';
+import { getPage } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Click on an element
- */
 export async function handleClick(
   args: SelectorArgs,
   state: ServerState
@@ -13,14 +11,9 @@ export async function handleClick(
 
   await page.click(selector);
 
-  return {
-    content: [{ type: 'text', text: `Clicked on ${selector}` }],
-  };
+  return respond({ ok: true, action: 'clicked', pageId, selector });
 }
 
-/**
- * Type text into an element
- */
 export async function handleType(
   args: TypeArgs,
   state: ServerState
@@ -30,14 +23,9 @@ export async function handleType(
 
   await page.type(selector, text);
 
-  return {
-    content: [{ type: 'text', text: `Typed "${text}" into ${selector}` }],
-  };
+  return respond({ ok: true, action: 'typed', pageId, selector, text });
 }
 
-/**
- * Get text content from an element
- */
 export async function handleGetText(
   args: SelectorArgs,
   state: ServerState
@@ -52,7 +40,5 @@ export async function handleGetText(
 
   const text = await page.evaluate((el) => el.textContent, element);
 
-  return {
-    content: [{ type: 'text', text: `Text from ${selector}: ${text}` }],
-  };
+  return respond({ ok: true, action: 'text_extracted', pageId, selector, text });
 }

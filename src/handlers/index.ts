@@ -1,9 +1,9 @@
-export { handleLaunch } from './launch';
-export { handleNewPage, handleClosePage } from './page';
-export { handleNavigate } from './navigation';
-export { handleClick, handleType, handleGetText } from './interaction';
-export { handleEvaluate, handleWaitForSelector } from './evaluation';
-export { handleScreenshot } from './screenshot';
-export { handleSetCookies, handleGetCookies, handleDeleteCookies } from './cookies';
-export { handleSetRequestInterception } from './interception';
-export { handleCloseBrowser } from './browser';
+export { handleLaunch } from './launch.js';
+export { handleNewPage, handleClosePage } from './page.js';
+export { handleNavigate } from './navigation.js';
+export { handleClick, handleType, handleGetText } from './interaction.js';
+export { handleEvaluate, handleWaitForSelector } from './evaluation.js';
+export { handleScreenshot } from './screenshot.js';
+export { handleSetCookies, handleGetCookies, handleDeleteCookies } from './cookies.js';
+export { handleSetRequestInterception } from './interception.js';
+export { handleCloseBrowser } from './browser.js';

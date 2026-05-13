@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import {
   handleSetCookies,
   handleGetCookies,
@@ -6,6 +7,7 @@ import {
 } from '../../../src/handlers/cookies';
 import { createMockPage } from '../mocks/puppeteer.mock';
 import { createMockStateWithBrowser } from '../mocks/state.mock';
+import { assertCalled, assertCalledWith, rejectWith } from '../_helpers';
 
 describe('handleSetCookies', () => {
   it('should set a single cookie', async () => {
@@ -15,8 +17,11 @@ describe('handleSetCookies', () => {
 
     const result = await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-    expect(mockPage.setCookie).toHaveBeenCalledWith({ name: 'session', value: 'abc123' });
-    expect(result.content[0].text).toBe('Set 1 cookie(s) for page page1');
+    assertCalledWith(mockPage.setCookie as any, { name: 'session', value: 'abc123' });
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'cookies_set');
+    assert.equal(sc.count, 1);
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should set multiple cookies', async () => {
@@ -30,12 +35,16 @@ describe('handleSetCookies', () => {
 
     const result = await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-    expect(mockPage.setCookie).toHaveBeenCalledWith(
+    assertCalledWith(
+      mockPage.setCookie as any,
       { name: 'session', value: 'abc' },
       { name: 'user', value: 'john' },
       { name: 'prefs', value: 'dark' }
     );
-    expect(result.content[0].text).toBe('Set 3 cookie(s) for page page1');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'cookies_set');
+    assert.equal(sc.count, 3);
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should set cookie with all properties', async () => {
@@ -56,25 +65,27 @@ describe('handleSetCookies', () => {
 
     await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-    expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+    assertCalledWith(mockPage.setCookie as any, cookies[0]);
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleSetCookies({ pageId: 'unknown', cookies: [] }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleSetCookies({ pageId: 'unknown', cookies: [] }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should propagate setCookie errors', async () => {
     const mockPage = createMockPage();
-    (mockPage.setCookie as any).mockRejectedValue(new Error('Invalid cookie'));
+    rejectWith(mockPage.setCookie as any, new Error('Invalid cookie'));
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleSetCookies({ pageId: 'page1', cookies: [{ name: 'bad', value: '' }] }, state)
-    ).rejects.toThrow('Invalid cookie');
+    await assert.rejects(
+      handleSetCookies({ pageId: 'page1', cookies: [{ name: 'bad', value: '' }] }, state),
+      { message: 'Invalid cookie' }
+    );
   });
 });
 
@@ -89,9 +100,11 @@ describe('handleGetCookies', () => {
 
     const result = await handleGetCookies({ pageId: 'page1' }, state);
 
-    expect(mockPage.cookies).toHaveBeenCalledWith();
-    expect(result.content[0].text).toContain('session');
-    expect(result.content[0].text).toContain('abc');
+    assertCalledWith(mockPage.cookies as any);
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'cookies_retrieved');
+    assert.deepEqual(sc.cookies, mockCookies);
+    assert.equal(sc.count, 2);
   });
 
   it('should get cookies filtered by URLs', async () => {
@@ -101,7 +114,7 @@ describe('handleGetCookies', () => {
 
     await handleGetCookies({ pageId: 'page1', urls }, state);
 
-    expect(mockPage.cookies).toHaveBeenCalledWith(...urls);
+    assertCalledWith(mockPage.cookies as any, ...urls);
   });
 
   it('should return empty array when no cookies', async () => {
@@ -110,14 +123,18 @@ describe('handleGetCookies', () => {
 
     const result = await handleGetCookies({ pageId: 'page1' }, state);
 
-    expect(result.content[0].text).toContain('[]');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'cookies_retrieved');
+    assert.deepEqual(sc.cookies, []);
+    assert.equal(sc.count, 0);
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(handleGetCookies({ pageId: 'unknown' }, state)).rejects.toThrow(
-      'Page unknown not found'
+    await assert.rejects(
+      handleGetCookies({ pageId: 'unknown' }, state),
+      { message: 'Page unknown not found' }
     );
   });
 });
@@ -130,11 +147,15 @@ describe('handleDeleteCookies', () => {
 
     const result = await handleDeleteCookies({ pageId: 'page1', cookies }, state);
 
-    expect(mockPage.deleteCookie).toHaveBeenCalledWith(
+    assertCalledWith(
+      mockPage.deleteCookie as any,
       { name: 'session' },
       { name: 'user' }
     );
-    expect(result.content[0].text).toBe('Deleted 2 cookie(s) from page page1');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'cookies_deleted');
+    assert.equal(sc.count, 2);
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should delete cookie with domain and path', async () => {
@@ -144,7 +165,7 @@ describe('handleDeleteCookies', () => {
 
     await handleDeleteCookies({ pageId: 'page1', cookies }, state);
 
-    expect(mockPage.deleteCookie).toHaveBeenCalledWith({
+    assertCalledWith(mockPage.deleteCookie as any, {
       name: 'session',
       domain: '.example.com',
       path: '/app',
@@ -154,19 +175,21 @@ describe('handleDeleteCookies', () => {
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleDeleteCookies({ pageId: 'unknown', cookies: [{ name: 'test' }] }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleDeleteCookies({ pageId: 'unknown', cookies: [{ name: 'test' }] }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should propagate deleteCookie errors', async () => {
     const mockPage = createMockPage();
-    (mockPage.deleteCookie as any).mockRejectedValue(new Error('Delete failed'));
+    rejectWith(mockPage.deleteCookie as any, new Error('Delete failed'));
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleDeleteCookies({ pageId: 'page1', cookies: [{ name: 'bad' }] }, state)
-    ).rejects.toThrow('Delete failed');
+    await assert.rejects(
+      handleDeleteCookies({ pageId: 'page1', cookies: [{ name: 'bad' }] }, state),
+      { message: 'Delete failed' }
+    );
   });
 });
 
@@ -179,7 +202,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle cookie with special characters in value', async () => {
@@ -189,7 +212,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle cookie with unicode value', async () => {
@@ -199,7 +222,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle cookie with very long value', async () => {
@@ -209,7 +232,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle empty cookie value', async () => {
@@ -219,7 +242,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle cookie with sameSite=None', async () => {
@@ -231,7 +254,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle cookie with past expiration', async () => {
@@ -243,7 +266,7 @@ describe('cookie edge cases', () => {
 
       await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(cookies[0]);
+      assertCalledWith(mockPage.setCookie as any, cookies[0]);
     });
 
     it('should handle setting 10+ cookies at once', async () => {
@@ -256,8 +279,11 @@ describe('cookie edge cases', () => {
 
       const result = await handleSetCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.setCookie).toHaveBeenCalledWith(...cookies);
-      expect(result.content[0].text).toBe('Set 15 cookie(s) for page page1');
+      assertCalledWith(mockPage.setCookie as any, ...cookies);
+      const sc = result.structuredContent as any;
+      assert.equal(sc.action, 'cookies_set');
+      assert.equal(sc.count, 15);
+      assert.equal(sc.pageId, 'page1');
     });
   });
 
@@ -273,7 +299,7 @@ describe('cookie edge cases', () => {
 
       await handleGetCookies({ pageId: 'page1', urls }, state);
 
-      expect(mockPage.cookies).toHaveBeenCalledWith(...urls);
+      assertCalledWith(mockPage.cookies as any, ...urls);
     });
 
     it('should handle getting cookies with empty URLs array', async () => {
@@ -283,7 +309,7 @@ describe('cookie edge cases', () => {
       await handleGetCookies({ pageId: 'page1', urls: [] }, state);
 
       // Empty array should still call cookies() with no arguments spread
-      expect(mockPage.cookies).toHaveBeenCalled();
+      assertCalled(mockPage.cookies as any);
     });
   });
 
@@ -297,7 +323,7 @@ describe('cookie edge cases', () => {
         state
       );
 
-      expect(mockPage.deleteCookie).toHaveBeenCalledWith({ name: 'session' });
+      assertCalledWith(mockPage.deleteCookie as any, { name: 'session' });
     });
 
     it('should handle deleting multiple cookies with different domains', async () => {
@@ -311,7 +337,7 @@ describe('cookie edge cases', () => {
 
       await handleDeleteCookies({ pageId: 'page1', cookies }, state);
 
-      expect(mockPage.deleteCookie).toHaveBeenCalledWith(...cookies);
+      assertCalledWith(mockPage.deleteCookie as any, ...cookies);
     });
   });
 });

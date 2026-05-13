@@ -1,9 +1,8 @@
-import puppeteer from 'puppeteer';
-import type { ServerState, MCPResponse, LaunchArgs, LogFunction } from '../types';
+import { getPuppeteer } from '../puppeteer.js';
+import type { ServerState, MCPResponse, LaunchArgs, LogFunction } from '../types.js';
+import { DEFAULT_PAGE_ID, applyPageDefaults } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Launch a new Puppeteer browser instance or connect to existing Chrome
- */
 export async function handleLaunch(
   args: LaunchArgs,
   state: ServerState,
@@ -22,13 +21,17 @@ export async function handleLaunch(
     slowMo,
   } = args;
 
-  // Close existing browser if any
   if (state.browser) {
     await state.browser.close();
+    state.pages.clear();
   }
 
-  // Store viewport for later use in new pages
+  // Capture session-level defaults so later auto-created pages inherit them.
   state.currentViewport = viewport || null;
+  state.currentUserAgent = userAgent || null;
+  state.currentStealth = stealth;
+
+  const puppeteer = getPuppeteer();
 
   const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
     headless,
@@ -37,13 +40,8 @@ export async function handleLaunch(
     defaultViewport: viewport || null,
   };
 
-  if (executablePath) {
-    launchOptions.executablePath = executablePath;
-  }
-
-  if (userDataDir) {
-    launchOptions.userDataDir = userDataDir;
-  }
+  if (executablePath) launchOptions.executablePath = executablePath;
+  if (userDataDir) launchOptions.userDataDir = userDataDir;
 
   if (stealth) {
     launchOptions.args!.push(
@@ -76,54 +74,22 @@ export async function handleLaunch(
     state.browser = await puppeteer.launch(launchOptions);
   }
 
-  if (viewport || userAgent || stealth) {
-    const pages = await state.browser.pages();
-    if (pages.length > 0) {
-      const page = pages[0];
-
-      if (viewport) {
-        await page.setViewport(viewport);
-      }
-
-      if (userAgent) {
-        await page.setUserAgent(userAgent);
-      } else if (stealth) {
-        await page.setUserAgent(
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        );
-      }
-
-      if (stealth) {
-        await page.evaluateOnNewDocument(`() => {
-          Object.defineProperty(navigator, 'webdriver', {
-            get: () => undefined,
-            configurable: true
-          });
-          Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5],
-            configurable: true
-          });
-          Object.defineProperty(navigator, 'languages', {
-            get: () => ['en-US', 'en'],
-            configurable: true
-          });
-          window.chrome = { runtime: {} };
-          Object.defineProperty(navigator, 'permissions', {
-            get: () => ({
-              query: () => Promise.resolve({ state: 'granted' })
-            }),
-            configurable: true
-          });
-        }`);
-      }
+  // Apply session defaults to the browser's initial blank page and register
+  // it as `default` so the lazy-page path reuses it instead of opening a
+  // second tab that would skip these defaults.
+  const initialPages = await state.browser.pages();
+  if (initialPages.length > 0) {
+    const page = initialPages[0];
+    await applyPageDefaults(page, state);
+    if (!state.pages.has(DEFAULT_PAGE_ID)) {
+      state.pages.set(DEFAULT_PAGE_ID, page);
     }
   }
 
-  const connectionMethod = browserWSEndpoint
-    ? 'Connected to existing browser'
-    : 'Browser launched';
-
-  return {
-    content: [{ type: 'text', text: `${connectionMethod} successfully` }],
-  };
+  return respond({
+    ok: true,
+    action: browserWSEndpoint ? 'browser_connected' : 'browser_launched',
+    headless,
+    stealth,
+  });
 }

@@ -4,20 +4,27 @@ on:
   push:
     branches: [ main, develop ]
     paths-ignore:
-      - '**/*[skip ci]*'  # Skip CI for version bump commits
+      - '**/*[skip ci]*'
   pull_request:
     branches: [ main ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    
+    name: ${{ matrix.os }} · node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [20, 24]
-    
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [24]
+        include:
+          # Lower bound: node 20 only on linux (saves runner minutes).
+          - os: ubuntu-latest
+            node-version: 20
+
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
@@ -31,31 +38,192 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Chrome for Puppeteer
+      - name: Install Chromium for Puppeteer
         run: npx puppeteer browsers install chrome
 
-      - name: Build package
+      - name: Build
         run: pnpm build
 
-      - name: Run unit tests
+      - name: Unit tests (165 tests, node:test via tsx)
         run: pnpm test
 
-      - name: Run E2E tests
-        if: matrix.node-version == 20
+      - name: E2E — every handler against a real browser
         run: pnpm test:e2e
 
-      - name: Test CLI commands
-        run: |
-          # Test CLI help
-          node bin/cli.js help
-
-          # Test CLI status (should show not installed)
-          node bin/cli.js status
-
-          # Test server can start (with timeout)
-          timeout 3s node bin/cli.js serve || echo "Server started successfully"
-
       - name: Verify package can be packed
+        run: npm pack --dry-run
+
+  tarball-install:
+    # Packs the project, installs the resulting .tgz globally, then runs the
+    # E2E against the GLOBALLY installed entry point. Catches packaging bugs
+    # (missing files, wrong bin path, ESM/CJS mistakes) that local dev hides.
+    name: Tarball install · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install deps + build
         run: |
-          pnpm pack --dry-run
-          echo "✅ Package structure verified"
+          pnpm install
+          npx puppeteer browsers install chrome
+          pnpm build
+
+      - name: Pack
+        id: pack
+        run: |
+          npm pack
+          TARBALL=$(ls puppeteer-mcp-claude-*.tgz | head -1)
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
+          echo "Packed: $TARBALL"
+
+      - name: Install tarball globally
+        run: |
+          npm install -g "./${{ steps.pack.outputs.tarball }}"
+          # `which` is unix-ish; on Windows GH runners bash uses Git's which.
+          which puppeteer-mcp-claude || command -v puppeteer-mcp-claude
+          puppeteer-mcp-claude help
+
+      - name: Resolve installed entry
+        id: entry
+        run: |
+          GLOBAL_ROOT=$(npm root -g)
+          ENTRY="$GLOBAL_ROOT/puppeteer-mcp-claude/dist/index.js"
+          if [ ! -f "$ENTRY" ]; then
+            echo "::error::Expected entry not found at $ENTRY"
+            ls "$GLOBAL_ROOT/puppeteer-mcp-claude" || true
+            exit 1
+          fi
+          echo "entry=$ENTRY" >> "$GITHUB_OUTPUT"
+
+      - name: E2E against globally installed server (direct entry)
+        env:
+          MCP_SERVER_ENTRY: ${{ steps.entry.outputs.entry }}
+        run: pnpm test:e2e
+
+      - name: E2E driving the installed bin shim (proves the wrapper works)
+        # Exercises the bin/cli.mjs shebang + serve subcommand end-to-end —
+        # the path real users hit when claude-mcp launches the server.
+        env:
+          MCP_SERVER_CMD: puppeteer-mcp-claude serve
+        run: pnpm test:e2e
+
+  installer-scripts:
+    # Smoke-test the install.sh / install.ps1 entry points without depending on
+    # the live claude CLI. Verifies they at least parse + run their preflight.
+    name: Installer scripts · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: test
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash syntax check (install.sh)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: bash -n install.sh
+
+      - name: PowerShell syntax check (install.ps1)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $errs = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'install.ps1').Path, [ref]$null, [ref]$errs
+          ) | Out-Null
+          if ($errs) { $errs; exit 1 }
+          Write-Host "install.ps1 parses cleanly"
+
+  claude-cli-integration:
+    # Verifies issue #7 stays fixed: the install command works against the
+    # real `claude` CLI, and the broken old form still fails (proving the
+    # bug we worked around still exists and our fix is needed).
+    name: claude CLI · issue #7 regression
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install + build
+        run: |
+          pnpm install
+          pnpm build
+
+      - name: Install Claude Code CLI (no login required for `claude mcp` commands)
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude --version
+
+      - name: 'Issue #7 regression check: the OLD broken form must still fail'
+        shell: bash
+        run: |
+          set +e
+          OUTPUT=$(claude mcp add puppeteer-mcp-claude 2>&1)
+          set -e
+          echo "$OUTPUT"
+          if echo "$OUTPUT" | grep -q "missing required argument 'commandOrUrl'"; then
+            echo "✓ Original bug reproduced — our fix is still needed"
+          else
+            echo "::warning::Claude CLI behaviour changed — the bug from issue #7 may have been fixed upstream"
+          fi
+
+      - name: 'Issue #7 fix verification: install registers the expected command'
+        shell: bash
+        run: |
+          set -e
+          node bin/cli.mjs install --scope user
+          claude mcp list | tee /tmp/mcp-list.txt
+          grep -q 'puppeteer-mcp-claude' /tmp/mcp-list.txt
+          echo "✓ Server is registered"
+
+          # Pull the per-server detail and assert the command + args match
+          # what our CLI is supposed to emit (npx -y self-healing form).
+          # claude stores Command/Args on separate lines, so check each.
+          DETAIL=$(claude mcp get puppeteer-mcp-claude)
+          echo "$DETAIL"
+          CMD=$(echo "$DETAIL" | sed -nE 's/^[[:space:]]*Command:[[:space:]]*//p')
+          ARGS=$(echo "$DETAIL" | sed -nE 's/^[[:space:]]*Args:[[:space:]]*//p')
+          if [ "$CMD" = "npx" ] && echo "$ARGS" | grep -Eq '^-y[[:space:]]+puppeteer-mcp-claude[[:space:]]+serve$'; then
+            echo "✓ Registered as: npx -y puppeteer-mcp-claude serve"
+          else
+            echo "::error::Registered command shape unexpected (CMD='$CMD' ARGS='$ARGS')"
+            exit 1
+          fi
+
+          # Bonus: claude mcp get attempts a live connect — if the connection
+          # failed the status line says "Failed to connect". Fail CI in that case.
+          if echo "$DETAIL" | grep -q 'Failed to connect'; then
+            echo "::error::claude could not connect to the registered MCP server"
+            exit 1
+          fi
+          echo "✓ claude connected to the registered server successfully"
+
+      - name: Uninstall
+        if: always()
+        run: node bin/cli.mjs uninstall --scope user || true

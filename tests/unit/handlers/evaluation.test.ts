@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { handleEvaluate, handleWaitForSelector } from '../../../src/handlers/evaluation';
 import { createMockPage } from '../mocks/puppeteer.mock';
 import { createMockStateWithBrowser } from '../mocks/state.mock';
+import { assertCalledWith, rejectWith } from '../_helpers';
 
 describe('handleEvaluate', () => {
   it('should execute script and return result', async () => {
@@ -13,16 +15,20 @@ describe('handleEvaluate', () => {
       state
     );
 
-    expect(mockPage.evaluate).toHaveBeenCalledWith('return { foo: "bar" }');
-    expect(result.content[0].text).toBe('Script result: {"foo":"bar"}');
+    assertCalledWith(mockPage.evaluate as any, 'return { foo: "bar" }');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'evaluated');
+    assert.deepEqual(sc.result, { foo: 'bar' });
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleEvaluate({ pageId: 'unknown', script: '1 + 1' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleEvaluate({ pageId: 'unknown', script: '1 + 1' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should handle undefined result', async () => {
@@ -31,7 +37,9 @@ describe('handleEvaluate', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'void 0' }, state);
 
-    expect(result.content[0].text).toBe('Script result: undefined');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'evaluated');
+    assert.equal(sc.result, undefined);
   });
 
   it('should handle null result', async () => {
@@ -40,7 +48,8 @@ describe('handleEvaluate', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'null' }, state);
 
-    expect(result.content[0].text).toBe('Script result: null');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, null);
   });
 
   it('should handle array result', async () => {
@@ -49,7 +58,8 @@ describe('handleEvaluate', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: '[1, 2, 3]' }, state);
 
-    expect(result.content[0].text).toBe('Script result: [1,2,3]');
+    const sc = result.structuredContent as any;
+    assert.deepEqual(sc.result, [1, 2, 3]);
   });
 
   it('should handle numeric result', async () => {
@@ -58,7 +68,8 @@ describe('handleEvaluate', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: '40 + 2' }, state);
 
-    expect(result.content[0].text).toBe('Script result: 42');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, 42);
   });
 
   it('should handle string result', async () => {
@@ -70,17 +81,19 @@ describe('handleEvaluate', () => {
       state
     );
 
-    expect(result.content[0].text).toBe('Script result: "hello"');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, 'hello');
   });
 
   it('should propagate script execution errors', async () => {
     const mockPage = createMockPage();
-    (mockPage.evaluate as any).mockRejectedValue(new Error('ReferenceError: foo is not defined'));
+    rejectWith(mockPage.evaluate as any, new Error('ReferenceError: foo is not defined'));
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleEvaluate({ pageId: 'page1', script: 'foo.bar' }, state)
-    ).rejects.toThrow('ReferenceError: foo is not defined');
+    await assert.rejects(
+      handleEvaluate({ pageId: 'page1', script: 'foo.bar' }, state),
+      { message: 'ReferenceError: foo is not defined' }
+    );
   });
 });
 
@@ -94,8 +107,11 @@ describe('handleWaitForSelector', () => {
       state
     );
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith('#element', { timeout: 30000 });
-    expect(result.content[0].text).toBe('Selector #element appeared');
+    assertCalledWith(mockPage.waitForSelector as any, '#element', { timeout: 30000 });
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'selector_appeared');
+    assert.equal(sc.selector, '#element');
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should use custom timeout', async () => {
@@ -107,15 +123,16 @@ describe('handleWaitForSelector', () => {
       state
     );
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith('#element', { timeout: 5000 });
+    assertCalledWith(mockPage.waitForSelector as any, '#element', { timeout: 5000 });
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleWaitForSelector({ pageId: 'unknown', selector: '#element' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleWaitForSelector({ pageId: 'unknown', selector: '#element' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should propagate timeout errors', async () => {
@@ -124,9 +141,10 @@ describe('handleWaitForSelector', () => {
     });
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleWaitForSelector({ pageId: 'page1', selector: '#slow' }, state)
-    ).rejects.toThrow('Timeout waiting for selector');
+    await assert.rejects(
+      handleWaitForSelector({ pageId: 'page1', selector: '#slow' }, state),
+      { message: 'Timeout waiting for selector' }
+    );
   });
 
   it('should handle zero timeout', async () => {
@@ -138,7 +156,7 @@ describe('handleWaitForSelector', () => {
       state
     );
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith('#element', { timeout: 0 });
+    assertCalledWith(mockPage.waitForSelector as any, '#element', { timeout: 0 });
   });
 });
 
@@ -149,7 +167,8 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'true' }, state);
 
-    expect(result.content[0].text).toBe('Script result: true');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, true);
   });
 
   it('should handle script returning empty object', async () => {
@@ -158,7 +177,8 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: '({})' }, state);
 
-    expect(result.content[0].text).toBe('Script result: {}');
+    const sc = result.structuredContent as any;
+    assert.deepEqual(sc.result, {});
   });
 
   it('should handle script returning empty array', async () => {
@@ -167,7 +187,8 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: '[]' }, state);
 
-    expect(result.content[0].text).toBe('Script result: []');
+    const sc = result.structuredContent as any;
+    assert.deepEqual(sc.result, []);
   });
 
   it('should handle script returning nested object', async () => {
@@ -178,7 +199,8 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'nested' }, state);
 
-    expect(result.content[0].text).toBe('Script result: {"a":{"b":{"c":[1,2,3]}}}');
+    const sc = result.structuredContent as any;
+    assert.deepEqual(sc.result, { a: { b: { c: [1, 2, 3] } } });
   });
 
   it('should handle script returning NaN', async () => {
@@ -187,7 +209,9 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'NaN' }, state);
 
-    expect(result.content[0].text).toBe('Script result: null'); // NaN serializes to null in JSON
+    const sc = result.structuredContent as any;
+    // Raw value is NaN now (not stringified)
+    assert.ok(Number.isNaN(sc.result));
   });
 
   it('should handle script returning Infinity', async () => {
@@ -196,7 +220,8 @@ describe('handleEvaluate edge cases', () => {
 
     const result = await handleEvaluate({ pageId: 'page1', script: 'Infinity' }, state);
 
-    expect(result.content[0].text).toBe('Script result: null'); // Infinity serializes to null in JSON
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, Infinity);
   });
 
   it('should handle very long script', async () => {
@@ -206,7 +231,7 @@ describe('handleEvaluate edge cases', () => {
 
     await handleEvaluate({ pageId: 'page1', script: longScript }, state);
 
-    expect(mockPage.evaluate).toHaveBeenCalledWith(longScript);
+    assertCalledWith(mockPage.evaluate as any, longScript);
   });
 
   it('should handle script with unicode', async () => {
@@ -218,7 +243,8 @@ describe('handleEvaluate edge cases', () => {
       state
     );
 
-    expect(result.content[0].text).toBe('Script result: "日本語"');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.result, '日本語');
   });
 });
 
@@ -232,7 +258,7 @@ describe('handleWaitForSelector edge cases', () => {
       state
     );
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith('#element', { timeout: 300000 });
+    assertCalledWith(mockPage.waitForSelector as any, '#element', { timeout: 300000 });
   });
 
   it('should handle complex CSS selector', async () => {
@@ -242,7 +268,7 @@ describe('handleWaitForSelector edge cases', () => {
 
     await handleWaitForSelector({ pageId: 'page1', selector: complexSelector }, state);
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith(complexSelector, { timeout: 30000 });
+    assertCalledWith(mockPage.waitForSelector as any, complexSelector, { timeout: 30000 });
   });
 
   it('should handle selector with pseudo-elements', async () => {
@@ -254,6 +280,6 @@ describe('handleWaitForSelector edge cases', () => {
       state
     );
 
-    expect(mockPage.waitForSelector).toHaveBeenCalledWith('button:hover', { timeout: 30000 });
+    assertCalledWith(mockPage.waitForSelector as any, 'button:hover', { timeout: 30000 });
   });
 });

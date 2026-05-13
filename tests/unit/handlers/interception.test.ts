@@ -1,7 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
 import { handleSetRequestInterception } from '../../../src/handlers/interception';
 import { createMockPage, createMockRequest } from '../mocks/puppeteer.mock';
 import { createMockStateWithBrowser } from '../mocks/state.mock';
+import {
+  assertCalled,
+  assertCalledWith,
+  assertNotCalled,
+  rejectWith,
+} from '../_helpers';
 
 describe('handleSetRequestInterception', () => {
   it('should enable interception', async () => {
@@ -13,9 +20,17 @@ describe('handleSetRequestInterception', () => {
       state
     );
 
-    expect(mockPage.setRequestInterception).toHaveBeenCalledWith(true);
-    expect(mockPage.on).toHaveBeenCalledWith('request', expect.any(Function));
-    expect(result.content[0].text).toBe('Request interception enabled for page page1');
+    assertCalledWith(mockPage.setRequestInterception as any, true);
+    // verify on('request', <Function>) was called
+    const onCalls = (mockPage.on as any).mock.calls;
+    const requestCall = onCalls.find(
+      (c: any) => c.arguments[0] === 'request' && typeof c.arguments[1] === 'function'
+    );
+    assert.ok(requestCall, 'Expected page.on("request", fn) to be called');
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'interception_configured');
+    assert.equal(sc.enabled, true);
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should disable interception', async () => {
@@ -27,9 +42,12 @@ describe('handleSetRequestInterception', () => {
       state
     );
 
-    expect(mockPage.setRequestInterception).toHaveBeenCalledWith(false);
-    expect(mockPage.on).not.toHaveBeenCalled();
-    expect(result.content[0].text).toBe('Request interception disabled for page page1');
+    assertCalledWith(mockPage.setRequestInterception as any, false);
+    assertNotCalled(mockPage.on as any);
+    const sc = result.structuredContent as any;
+    assert.equal(sc.action, 'interception_configured');
+    assert.equal(sc.enabled, false);
+    assert.equal(sc.pageId, 'page1');
   });
 
   it('should default to enable=true', async () => {
@@ -38,15 +56,16 @@ describe('handleSetRequestInterception', () => {
 
     await handleSetRequestInterception({ pageId: 'page1' }, state);
 
-    expect(mockPage.setRequestInterception).toHaveBeenCalledWith(true);
+    assertCalledWith(mockPage.setRequestInterception as any, true);
   });
 
   it('should throw for unknown pageId', async () => {
     const state = createMockStateWithBrowser();
 
-    await expect(
-      handleSetRequestInterception({ pageId: 'unknown' }, state)
-    ).rejects.toThrow('Page unknown not found');
+    await assert.rejects(
+      handleSetRequestInterception({ pageId: 'unknown' }, state),
+      { message: 'Page unknown not found' }
+    );
   });
 
   it('should block specified resource types', async () => {
@@ -60,19 +79,19 @@ describe('handleSetRequestInterception', () => {
 
     // Get the request handler that was registered
     const requestHandler = (mockPage.on as any).mock.calls.find(
-      ([event]: [string]) => event === 'request'
-    )?.[1];
-    expect(requestHandler).toBeDefined();
+      (c: any) => c.arguments[0] === 'request'
+    )?.arguments[1];
+    assert.ok(requestHandler);
 
     // Test blocking an image request
     const imageRequest = createMockRequest('image');
     await requestHandler(imageRequest);
-    expect(imageRequest.abort).toHaveBeenCalled();
+    assertCalled(imageRequest.abort as any);
 
     // Test allowing a document request
     const docRequest = createMockRequest('document');
     await requestHandler(docRequest);
-    expect(docRequest.continue).toHaveBeenCalled();
+    assertCalled(docRequest.continue as any);
   });
 
   it('should modify headers', async () => {
@@ -86,15 +105,13 @@ describe('handleSetRequestInterception', () => {
     );
 
     const requestHandler = (mockPage.on as any).mock.calls.find(
-      ([event]: [string]) => event === 'request'
-    )?.[1];
+      (c: any) => c.arguments[0] === 'request'
+    )?.arguments[1];
 
     const request = createMockRequest('document');
     await requestHandler(request);
 
-    expect(request.continue).toHaveBeenCalledWith({
-      headers: expect.objectContaining(customHeaders),
-    });
+    assertCalledWith(request.continue as any, { headers: customHeaders });
   });
 
   it('should handle empty blockResources array', async () => {
@@ -107,26 +124,25 @@ describe('handleSetRequestInterception', () => {
     );
 
     const requestHandler = (mockPage.on as any).mock.calls.find(
-      ([event]: [string]) => event === 'request'
-    )?.[1];
+      (c: any) => c.arguments[0] === 'request'
+    )?.arguments[1];
 
     const request = createMockRequest('script');
     await requestHandler(request);
 
-    expect(request.abort).not.toHaveBeenCalled();
-    expect(request.continue).toHaveBeenCalled();
+    assertNotCalled(request.abort as any);
+    assertCalled(request.continue as any);
   });
 
   it('should propagate setRequestInterception errors', async () => {
     const mockPage = createMockPage();
-    (mockPage.setRequestInterception as any).mockRejectedValue(
-      new Error('Interception failed')
-    );
+    rejectWith(mockPage.setRequestInterception as any, new Error('Interception failed'));
     const state = createMockStateWithBrowser([['page1', mockPage]]);
 
-    await expect(
-      handleSetRequestInterception({ pageId: 'page1' }, state)
-    ).rejects.toThrow('Interception failed');
+    await assert.rejects(
+      handleSetRequestInterception({ pageId: 'page1' }, state),
+      { message: 'Interception failed' }
+    );
   });
 
   describe('edge cases', () => {
@@ -144,14 +160,14 @@ describe('handleSetRequestInterception', () => {
       );
 
       const requestHandler = (mockPage.on as any).mock.calls.find(
-        ([event]: [string]) => event === 'request'
-      )?.[1];
+        (c: any) => c.arguments[0] === 'request'
+      )?.arguments[1];
 
       // All types should be blocked
       for (const type of allTypes) {
         const request = createMockRequest(type);
         await requestHandler(request);
-        expect(request.abort).toHaveBeenCalled();
+        assertCalled(request.abort as any);
       }
     });
 
@@ -171,15 +187,13 @@ describe('handleSetRequestInterception', () => {
       );
 
       const requestHandler = (mockPage.on as any).mock.calls.find(
-        ([event]: [string]) => event === 'request'
-      )?.[1];
+        (c: any) => c.arguments[0] === 'request'
+      )?.arguments[1];
 
       const request = createMockRequest('document');
       await requestHandler(request);
 
-      expect(request.continue).toHaveBeenCalledWith({
-        headers: expect.objectContaining(headers),
-      });
+      assertCalledWith(request.continue as any, { headers });
     });
 
     it('should handle headers with special characters', async () => {
@@ -196,15 +210,13 @@ describe('handleSetRequestInterception', () => {
       );
 
       const requestHandler = (mockPage.on as any).mock.calls.find(
-        ([event]: [string]) => event === 'request'
-      )?.[1];
+        (c: any) => c.arguments[0] === 'request'
+      )?.arguments[1];
 
       const request = createMockRequest('xhr');
       await requestHandler(request);
 
-      expect(request.continue).toHaveBeenCalledWith({
-        headers: expect.objectContaining(headers),
-      });
+      assertCalledWith(request.continue as any, { headers });
     });
 
     it('should handle combined blocking and header modification', async () => {
@@ -221,20 +233,36 @@ describe('handleSetRequestInterception', () => {
       );
 
       const requestHandler = (mockPage.on as any).mock.calls.find(
-        ([event]: [string]) => event === 'request'
-      )?.[1];
+        (c: any) => c.arguments[0] === 'request'
+      )?.arguments[1];
 
       // Image should be blocked
       const imageRequest = createMockRequest('image');
       await requestHandler(imageRequest);
-      expect(imageRequest.abort).toHaveBeenCalled();
+      assertCalled(imageRequest.abort as any);
 
       // XHR should continue with modified headers
       const xhrRequest = createMockRequest('xhr');
       await requestHandler(xhrRequest);
-      expect(xhrRequest.continue).toHaveBeenCalledWith({
-        headers: expect.objectContaining({ 'X-Custom': 'test' }),
-      });
+      assertCalledWith(xhrRequest.continue as any, { headers: { 'X-Custom': 'test' } });
+    });
+
+    it('drops existing request listeners before adding a new one (no listener stacking)', async () => {
+      const mockPage = createMockPage();
+      const state = createMockStateWithBrowser([['page1', mockPage]]);
+
+      await handleSetRequestInterception({ pageId: 'page1', enable: true }, state);
+      await handleSetRequestInterception({ pageId: 'page1', enable: true }, state);
+      await handleSetRequestInterception({ pageId: 'page1', enable: true }, state);
+
+      // Each call clears prior listeners; net result is exactly one active.
+      const removeCalls = (mockPage.removeAllListeners as any).mock.calls.length;
+      const onCalls = (mockPage.on as any).mock.calls.filter(
+        (c: any) => c.arguments[0] === 'request'
+      ).length;
+      assert.equal(removeCalls, 3, 'removeAllListeners called once per invocation');
+      assert.equal(onCalls, 3, 'page.on(request) called once per invocation');
+      // The important invariant: removes precede adds, so handlers don't pile up.
     });
 
     it('should handle request interception toggle', async () => {
@@ -243,11 +271,19 @@ describe('handleSetRequestInterception', () => {
 
       // Enable
       await handleSetRequestInterception({ pageId: 'page1', enable: true }, state);
-      expect(mockPage.setRequestInterception).toHaveBeenLastCalledWith(true);
+      {
+        const calls = (mockPage.setRequestInterception as any).mock.calls;
+        const last = calls[calls.length - 1];
+        assert.equal(last.arguments[0], true);
+      }
 
       // Disable
       await handleSetRequestInterception({ pageId: 'page1', enable: false }, state);
-      expect(mockPage.setRequestInterception).toHaveBeenLastCalledWith(false);
+      {
+        const calls = (mockPage.setRequestInterception as any).mock.calls;
+        const last = calls[calls.length - 1];
+        assert.equal(last.arguments[0], false);
+      }
     });
   });
 });

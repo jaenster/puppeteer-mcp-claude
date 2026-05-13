@@ -1,4 +1,4 @@
-import type { Browser, Page, Viewport, CookieParam, Protocol } from 'puppeteer';
+import type { Browser, Page, Viewport, CookieParam } from 'puppeteer';
 
 /**
  * Shared state for the MCP server
@@ -7,17 +7,25 @@ export interface ServerState {
   browser: Browser | null;
   pages: Map<string, Page>;
   currentViewport: Viewport | null;
+  currentUserAgent: string | null;
+  currentStealth: boolean;
   pipeDisconnected: boolean;
+  /** In-flight launch promise; ensures concurrent ensureBrowser() calls share one Chromium. */
+  browserLaunching: Promise<Browser> | null;
+  /** In-flight page-creation promises keyed by pageId. */
+  pageCreations: Map<string, Promise<Page>>;
 }
 
 /**
  * MCP response format - uses index signature for SDK compatibility
  */
+export type MCPContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string };
+
 export interface MCPResponse {
-  content: Array<{
-    type: 'text';
-    text: string;
-  }>;
+  content: MCPContent[];
+  structuredContent?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

@@ -1,19 +1,19 @@
-import type { ServerState, MCPResponse } from '../types';
+import type { ServerState, MCPResponse } from '../types.js';
+import { respond } from '../response.js';
 
-/**
- * Close the browser and all pages
- */
 export async function handleCloseBrowser(
   _args: Record<string, never>,
   state: ServerState
 ): Promise<MCPResponse> {
+  const wasOpen = state.browser !== null;
   if (state.browser) {
     await state.browser.close();
     state.browser = null;
-    state.pages.clear();
   }
+  state.pages.clear();
+  state.currentViewport = null;
+  state.currentUserAgent = null;
+  state.currentStealth = false;
 
-  return {
-    content: [{ type: 'text', text: 'Browser closed' }],
-  };
+  return respond({ ok: true, action: 'browser_closed', wasOpen });
 }

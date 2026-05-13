@@ -1,9 +1,7 @@
-import type { ServerState, MCPResponse, ScreenshotArgs } from '../types';
-import { getPage } from '../state';
+import type { ServerState, MCPResponse, ScreenshotArgs } from '../types.js';
+import { getPage } from '../state.js';
+import { respond } from '../response.js';
 
-/**
- * Take a screenshot of the page
- */
 export async function handleScreenshot(
   args: ScreenshotArgs,
   state: ServerState
@@ -11,18 +9,24 @@ export async function handleScreenshot(
   const { pageId, path, fullPage = false } = args;
   const page = getPage(state, pageId);
 
-  await page.screenshot({
+  const bytes = await page.screenshot({
     path,
     fullPage,
     type: 'png',
   });
 
-  return {
-    content: [
-      {
-        type: 'text',
-        text: path ? `Screenshot saved to ${path}` : 'Screenshot taken',
-      },
-    ],
-  };
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes as Uint8Array);
+  const data = buffer.toString('base64');
+
+  return respond(
+    {
+      ok: true,
+      action: 'screenshot_taken',
+      pageId,
+      path: path ?? null,
+      fullPage,
+      bytes: buffer.length,
+    },
+    [{ type: 'image', data, mimeType: 'image/png' }]
+  );
 }
