@@ -1,5 +1,9 @@
 # puppeteer-mcp-claude
 
+<p align="center">
+  <img src=".github/banner.svg" alt="puppeteer-mcp-claude — browser automation MCP server for Claude" width="100%"/>
+</p>
+
 [![npm version](https://img.shields.io/npm/v/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
 [![npm downloads](https://img.shields.io/npm/dm/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
 [![CI](https://github.com/jaenster/puppeteer-mcp-claude/actions/workflows/ci.yml/badge.svg)](https://github.com/jaenster/puppeteer-mcp-claude/actions/workflows/ci.yml)
@@ -68,11 +72,70 @@ Every tool returns its result in two parallel forms:
 
 Which one your host uses is up to the host — both are MCP-spec-compliant. Typed clients that want the object without depending on `structuredContent` can `import { decode } from '@toon-format/toon'` and parse `content[0].text`.
 
-### Connecting to an existing Chrome (login state, etc.)
+## Examples
+
+How an LLM would typically drive this server — each example shows the prompt you'd give Claude and the tool sequence it produces.
+
+### Take a screenshot of a site
+
+> "Take a screenshot of news.ycombinator.com."
+
+```text
+puppeteer_navigate { url: "https://news.ycombinator.com" }
+puppeteer_screenshot { fullPage: true }
+```
+
+Returns the PNG as an inline image block (Claude sees it directly), plus structured `{ bytes, path: null, fullPage: true }`.
+
+### Scrape article titles
+
+> "Give me the titles of the top 10 stories on Hacker News as a markdown list."
+
+```text
+puppeteer_navigate { url: "https://news.ycombinator.com" }
+puppeteer_evaluate { script: "[...document.querySelectorAll('.titleline > a')].slice(0,10).map(a => a.textContent)" }
+```
+
+Claude formats the resulting array into the requested markdown list.
+
+### Fill a form
+
+> "On example.com, fill the search box with 'TOON' and submit."
+
+```text
+puppeteer_navigate { url: "https://example.com" }
+puppeteer_type   { selector: "input[name=q]", text: "TOON" }
+puppeteer_click  { selector: "button[type=submit]" }
+puppeteer_wait_for_selector { selector: ".results" }
+puppeteer_get_text { selector: ".results h1" }
+```
+
+### Reuse an existing logged-in browser
+
+> "Connect to my running Chrome and take a screenshot of the GitHub dashboard."
 
 ```bash
+# In one terminal
 puppeteer-mcp-claude chrome 9222
-# then in Claude: puppeteer_launch with browserWSEndpoint: "ws://localhost:9222"
+# Sign in to GitHub once in the launched Chrome window.
+```
+
+```text
+puppeteer_launch { browserWSEndpoint: "ws://localhost:9222" }
+puppeteer_navigate { url: "https://github.com" }
+puppeteer_screenshot {}
+```
+
+Avoids re-doing login flows in every session.
+
+### Block images for faster scraping
+
+> "Scrape the article text from <url> as quickly as possible."
+
+```text
+puppeteer_set_request_interception { enable: true, blockResources: ["image","media","font","stylesheet"] }
+puppeteer_navigate { url: "<url>" }
+puppeteer_get_text { selector: "article" }
 ```
 
 ## CLI

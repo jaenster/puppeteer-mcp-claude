@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" role="img" aria-label="puppeteer-mcp-claude — browser automation MCP server for Claude">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e0e12"/>
+      <stop offset="1" stop-color="#1a1a22"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cc785c"/>
+      <stop offset="1" stop-color="#d99a85"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="280" rx="20" fill="url(#bg)"/>
+
+  <!-- subtle browser-window glyph -->
+  <g transform="translate(60,70) " opacity="0.95">
+    <rect x="0" y="0" width="160" height="120" rx="10" fill="#23232b" stroke="#3a3a45" stroke-width="2"/>
+    <rect x="0" y="0" width="160" height="22" rx="10" fill="#2a2a33"/>
+    <rect x="0" y="12" width="160" height="10" fill="#2a2a33"/>
+    <circle cx="14" cy="11" r="4" fill="#ff6f5e"/>
+    <circle cx="28" cy="11" r="4" fill="#ffc83d"/>
+    <circle cx="42" cy="11" r="4" fill="#3ad07b"/>
+    <rect x="14" y="38" width="80" height="8" rx="4" fill="#3a3a45"/>
+    <rect x="14" y="56" width="120" height="8" rx="4" fill="#3a3a45"/>
+    <rect x="14" y="74" width="60" height="8" rx="4" fill="url(#accent)"/>
+    <rect x="14" y="92" width="100" height="8" rx="4" fill="#3a3a45"/>
+  </g>
+
+  <!-- title + tagline -->
+  <text x="260" y="130" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="52" font-weight="700" fill="#fafafa" letter-spacing="-1">
+    puppeteer-mcp-claude
+  </text>
+  <text x="260" y="172" font-family="ui-sans-serif, system-ui, -apple-system, Helvetica, Arial, sans-serif" font-size="22" fill="#a0a0a8">
+    Browser automation MCP server for Claude — powered by Puppeteer
+  </text>
+
+  <!-- pill list of capabilities -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, sans-serif" font-size="14" fill="#fafafa">
+    <g transform="translate(260,200)">
+      <rect width="84"  height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="42" y="19" text-anchor="middle">navigate</text>
+    </g>
+    <g transform="translate(354,200)">
+      <rect width="64"  height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="32" y="19" text-anchor="middle">click</text>
+    </g>
+    <g transform="translate(428,200)">
+      <rect width="60"  height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="30" y="19" text-anchor="middle">type</text>
+    </g>
+    <g transform="translate(498,200)">
+      <rect width="104" height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="52" y="19" text-anchor="middle">screenshot</text>
+    </g>
+    <g transform="translate(612,200)">
+      <rect width="116" height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="58" y="19" text-anchor="middle">evaluate&#160;JS</text>
+    </g>
+    <g transform="translate(738,200)">
+      <rect width="86"  height="28" rx="14" fill="#2a2a33" stroke="#3a3a45"/>
+      <text x="43" y="19" text-anchor="middle">cookies</text>
+    </g>
+    <g transform="translate(834,200)">
+      <rect width="118" height="28" rx="14" fill="url(#accent)"/>
+      <text x="59" y="19" text-anchor="middle" fill="#0e0e12" font-weight="600">intercept</text>
+    </g>
+  </g>
+</svg>
