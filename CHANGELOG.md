@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented here. Format loosely follows [Keep a Changelog](https://keepachangelog.com/) and the project adheres to [SemVer](https://semver.org/).
 
+## [0.2.2] — 2026-05-13
+
+Pure metadata / docs release — no code changes versus v0.2.1.
+
+### Changed
+- Tightened npm + GitHub repo description.
+- Expanded npm keywords from 5 to 15 (`claude-code`, `claude-desktop`, `anthropic`, `chromium`, `headless-chrome`, `web-scraping`, `screenshot`, etc.).
+- Added README badges (npm version, downloads, CI status, Node version, license).
+- Cross-linked the other MCP servers in this family ([remote-shell-mcp](https://github.com/jaenster/remote-shell-mcp), [node-debugger-mcp](https://github.com/jaenster/node-debugger-mcp)).
+- CHANGELOG.md added to the npm tarball so it renders on the package page.
+- GitHub repo topics, homepage, and description set via API.
+
 ## [0.2.1] — 2026-05-13
 
 ### Fixed
@@ -48,5 +60,6 @@ A full modernisation pass. The tool API (names + argument shapes) is preserved; 
 
 Original release line. See `git log v0.1.10` for the history.
 
+[0.2.2]: https://github.com/jaenster/puppeteer-mcp-claude/releases/tag/v0.2.2
 [0.2.1]: https://github.com/jaenster/puppeteer-mcp-claude/releases/tag/v0.2.1
 [0.2.0]: https://github.com/jaenster/puppeteer-mcp-claude/releases/tag/v0.2.0
