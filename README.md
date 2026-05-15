@@ -1,6 +1,10 @@
 # puppeteer-mcp-claude
 
-[![npm](https://img.shields.io/npm/v/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
+[![npm version](https://img.shields.io/npm/v/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
+[![npm downloads](https://img.shields.io/npm/dm/puppeteer-mcp-claude.svg)](https://www.npmjs.com/package/puppeteer-mcp-claude)
+[![CI](https://github.com/jaenster/puppeteer-mcp-claude/actions/workflows/ci.yml/badge.svg)](https://github.com/jaenster/puppeteer-mcp-claude/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/node/v/puppeteer-mcp-claude.svg)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that gives Claude Code (and any other MCP-aware client) a real browser via Puppeteer — navigate pages, click and type, run JavaScript, capture screenshots, manage cookies, intercept requests.
 
@@ -82,7 +86,15 @@ pnpm dev            # run the server directly from src/
 
 ## Other MCP servers I maintain
 
-- [**remote-shell-mcp**](https://github.com/jaenster/remote-shell-mcp) — run shell commands on remote hosts from Claude.
+- [**remote-shell-mcp**](https://github.com/jaenster/remote-shell-mcp) — persistent SSH, SFTP, port forwarding, and Docker over MCP. Long-running daemon so sessions, tunnels, and PTY shells survive across Claude Code / Claude Desktop / Cursor / Codex CLI restarts.
+- [**node-debugger-mcp**](https://github.com/jaenster/node-debugger-mcp) — real Node.js debugger over MCP. Breakpoints, stepping, scope inspection, eval, source-map-aware BPs, child-process and worker-thread auto-attach. Speaks the V8 Inspector Protocol.
+
+## Links
+
+- [npm package](https://www.npmjs.com/package/puppeteer-mcp-claude)
+- [Issues](https://github.com/jaenster/puppeteer-mcp-claude/issues)
+- [Changelog](CHANGELOG.md)
+- [Model Context Protocol docs](https://modelcontextprotocol.io)
 
 ## License
 

@@ -11,6 +11,7 @@
     "dist/",
     "bin/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {
@@ -25,10 +26,20 @@
   },
   "keywords": [
     "mcp",
-    "puppeteer",
+    "mcp-server",
+    "model-context-protocol",
     "claude",
+    "claude-code",
+    "claude-desktop",
+    "anthropic",
+    "puppeteer",
     "browser-automation",
-    "model-context-protocol"
+    "web-automation",
+    "chromium",
+    "headless-chrome",
+    "web-scraping",
+    "screenshot",
+    "llm-tools"
   ],
   "author": "jaenster",
   "repository": {
@@ -40,7 +51,7 @@
   },
   "homepage": "https://github.com/jaenster/puppeteer-mcp-claude#readme",
   "license": "MIT",
-  "description": "A Model Context Protocol (MCP) server that provides Claude Code with comprehensive browser automation capabilities through Puppeteer",
+  "description": "Browser automation MCP server for Claude, powered by Puppeteer.",
   "engines": {
     "node": ">=18"
   },
